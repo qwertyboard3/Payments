@@ -8,6 +8,11 @@ const payments = [
     name: "House Payment",
     dueDay: 1,
     link: "https://loansphereservicingdigital.bkiconnect.com/newamericanfunding/#/login"
+  },
+  {
+    name: "Progressive Payment",
+    dueDay: 15,
+    link: "https://www.progressive.com/"
   }
 ];
 
@@ -33,6 +38,11 @@ function renderPayments() {
       <p><strong>Due:</strong> ${payment.dueDay} of each month</p>
       <p><a href="${payment.link}" target="_blank">Go to Payment</a></p>
     `;
+
+    // Highlight payments due on the 15th
+    if (payment.dueDay === 15) {
+      card.style.border = "2px solid #ff0000"; // Red border for 15th
+    }
 
     list.appendChild(card);
   });
