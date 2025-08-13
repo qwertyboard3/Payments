@@ -7,7 +7,7 @@ body {
 
 .container {
   max-width: 700px;
-  margin: 40px auto;
+  margin: 20px auto;
   padding: 20px;
   background: #fff;
   border-radius: 8px;
@@ -51,4 +51,29 @@ h1 {
 
 .payment-card.red {
   background-color: #f8d7da;
+}
+
+/* Mobile Optimization */
+@media (max-width: 600px) {
+  .container {
+    padding: 15px;
+    margin: 10px;
+  }
+
+  h1 {
+    font-size: 1.5em;
+  }
+
+  .payment-card {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  .payment-card h2 {
+    font-size: 1.2em;
+  }
+
+  .payment-card a {
+    font-size: 1.1em;
+  }
 }
