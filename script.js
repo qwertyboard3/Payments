@@ -12,9 +12,25 @@ const payments = [
   {
     name: "Progressive Payment",
     dueDay: 15,
-    link: "https://www.progressive.com/"
+    appLink: "progressive://open", // The custom URL scheme to launch Progressive app directly
+    webLink: "https://www.progressive.com/"
   }
 ];
+
+// Function to attempt to open the app
+function openAppOrFallback(appLink, fallbackLink) {
+  const start = Date.now();
+
+  // Open the app by custom scheme (e.g., "progressive://open")
+  window.location = appLink;
+
+  // Wait for a few seconds to see if the app opens, otherwise fallback to web URL
+  setTimeout(function() {
+    if (Date.now() - start < 1500) {
+      window.location = fallbackLink;
+    }
+  }, 1000);
+}
 
 function getStatusColor(dueDay) {
   const today = new Date().getDate();
@@ -36,7 +52,7 @@ function renderPayments() {
     card.innerHTML = `
       <h2>${payment.name}</h2>
       <p><strong>Due:</strong> ${payment.dueDay} of each month</p>
-      <p><a href="${payment.link}" target="_blank">Go to Payment</a></p>
+      <p><a href="javascript:void(0);" onclick="openAppOrFallback('${payment.appLink || ''}', '${payment.webLink}')">Go to Payment</a></p>
     `;
 
     // Highlight payments due on the 15th
