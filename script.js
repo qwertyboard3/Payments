@@ -12,19 +12,19 @@ const payments = [
   {
     name: "Progressive Payment",
     dueDay: 15,
-    appLink: "progressive://open", // The custom URL scheme to launch Progressive app directly
+    appLink: "https://progressive.com", // If the app supports Universal Links (not custom scheme)
     webLink: "https://www.progressive.com/"
   }
 ];
 
-// Function to attempt to open the app
+// Function to attempt to open the app (Universal Link or Custom Scheme)
 function openAppOrFallback(appLink, fallbackLink) {
   const start = Date.now();
 
-  // Open the app by custom scheme (e.g., "progressive://open")
+  // Open the app link directly (Universal Link or Custom URL scheme)
   window.location = appLink;
 
-  // Wait for a few seconds to see if the app opens, otherwise fallback to web URL
+  // Wait for a few seconds to see if the app opens, otherwise fallback to the website
   setTimeout(function() {
     if (Date.now() - start < 1500) {
       window.location = fallbackLink;
