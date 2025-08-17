@@ -54,7 +54,7 @@ a:hover{text-decoration:underline}
 <header>
 <div>
 <h1>4‑Week Payment Tracker</h1>
-<div class="sub">Dark theme · Offline · Saves status in your browser or Firebase Firestore</div>
+<div class="sub">Dark theme · Saves toggle state in Firebase Firestore</div>
 </div>
 <div class="sub">Total owed across all bills: <strong>$4,005</strong></div>
 </header>
@@ -76,7 +76,7 @@ a:hover{text-decoration:underline}
 <div>Remaining: <span id="remainingTotal" class="bad">$4,005</span></div>
 </div>
 <div class="progress"><i id="progressBar"></i></div>
-<div class="foot">Click toggles to mark payments as paid — changes are saved automatically.</div>
+<div class="foot">Click toggles to mark payments as paid — changes are saved automatically to Firebase.</div>
 </section>
 </div>
 
@@ -135,96 +135,96 @@ const ALL_BILLS_ORDER = [
 function num(n){ return Number(n).toLocaleString(undefined,{maximumFractionDigits:0}); }
 function money(n){ return `$${Number(n).toLocaleString(undefined,{minimumFractionDigits:0, maximumFractionDigits:0})}`; }
 
-// ====== Firestore storage helpers ======
-async function loadState() {
+async function initTracker() {
+  // Load toggle state from Firestore
+  let state = {};
   try {
     const snap = await getDoc(TOGGLE_DOC);
-    return snap.exists() ? snap.data() : {};
-  } catch(e){ console.warn(e); return {}; }
-}
+    state = snap.exists() ? snap.data() : {};
+  } catch(e){ console.warn("Failed to load toggles:", e); }
 
-async function saveState(state){
-  await setDoc(TOGGLE_DOC, state);
-}
+  const weeksEl = document.getElementById('weeks');
+  const allBillsEl = document.getElementById('allBills');
 
-// ====== Render ======
-const weeksEl = document.getElementById('weeks');
-const allBillsEl = document.getElementById('allBills');
-const state = await loadState();
+  function render() {
+    weeksEl.innerHTML = '';
+    WEEKS.forEach(week => {
+      const card = document.createElement('section');
+      card.className = 'card';
+      const totalThisWeek = (week.items||[]).reduce((a,b)=>a+b.amount,0);
+      const remaining = week.income - totalThisWeek;
+      card.innerHTML = `<h2>${week.date} <span class="meta">· <span class="pill">Income $${num(week.income)}</span> <span class="pill good">Planned $${num(totalThisWeek)}</span></span></h2>
+        <div class="row head"><div>Item</div><div class="due">Due</div><div class="amount">Amount</div><div>Paid</div></div>`;
+      week.items.forEach(it=>{
+        const row = document.createElement('div');
+        row.className='row';
+        row.innerHTML = `<div>${it.name}</div><div class="due">${it.due}</div><div class="amount">$${num(it.amount)}</div>
+          <label><input type="checkbox" class="toggle" data-id="${it.id}" ${state[it.id]?'checked':''}></label>`;
+        card.appendChild(row);
+      });
+      const totals = document.createElement('div');
+      totals.className='totals';
+      totals.innerHTML = `<div>Week total: <strong>$${num(totalThisWeek)}</strong></div>
+        <div>Remaining from paycheck: <span class="${remaining>=0?'ok':'bad'}">$${num(remaining)}</span></div>`;
+      card.appendChild(totals);
+      weeksEl.appendChild(card);
+    });
 
-function render() {
-  weeksEl.innerHTML = '';
-  WEEKS.forEach(week => {
-    const card = document.createElement('section');
-    card.className = 'card';
-    const totalThisWeek = (week.items||[]).reduce((a,b)=>a+b.amount,0);
-    const remaining = week.income - totalThisWeek;
-    card.innerHTML = `<h2>${week.date} <span class="meta">· <span class="pill">Income $${num(week.income)}</span> <span class="pill good">Planned $${num(totalThisWeek)}</span></span></h2>
-      <div class="row head"><div>Item</div><div class="due">Due</div><div class="amount">Amount</div><div>Paid</div></div>`;
-    week.items.forEach(it=>{
+    // All Bills Table
+    allBillsEl.innerHTML='';
+    const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
+    ALL_BILLS_ORDER.forEach(id=>{
+      const it=byId[id];
+      if(!it) return;
       const row = document.createElement('div');
       row.className='row';
+      row.dataset.id=id;
       row.innerHTML = `<div>${it.name}</div><div class="due">${it.due}</div><div class="amount">$${num(it.amount)}</div>
-        <label><input type="checkbox" class="toggle" data-id="${it.id}" ${state[it.id]?'checked':''}></label>`;
-      card.appendChild(row);
+        <div class="status muted">${state[id]?'Paid':'Unpaid'}</div>`;
+      allBillsEl.appendChild(row);
     });
-    const totals = document.createElement('div');
-    totals.className='totals';
-    totals.innerHTML = `<div>Week total: <strong>$${num(totalThisWeek)}</strong></div>
-      <div>Remaining from paycheck: <span class="${remaining>=0?'ok':'bad'}">$${num(remaining)}</span></div>`;
-    card.appendChild(totals);
-    weeksEl.appendChild(card);
-  });
-
-  // All Bills Table
-  allBillsEl.innerHTML='';
-  const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
-  ALL_BILLS_ORDER.forEach(id=>{
-    const it=byId[id];
-    if(!it) return;
-    const row = document.createElement('div');
-    row.className='row';
-    row.dataset.id=id;
-    row.innerHTML = `<div>${it.name}</div><div class="due">${it.due}</div><div class="amount">$${num(it.amount)}</div>
-      <div class="status muted">${state[id]?'Paid':'Unpaid'}</div>`;
-    allBillsEl.appendChild(row);
-  });
-  recalcTotals();
-}
-
-function recalcTotals() {
-  const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
-  const planned = ALL_BILLS_ORDER.reduce((a,id)=> a + (byId[id]?.amount||0),0);
-  const paid = ALL_BILLS_ORDER.reduce((a,id)=> a + (state[id] ? (byId[id]?.amount||0) : 0),0);
-  const remaining = planned - paid;
-  document.getElementById('plannedTotal').textContent=money(planned);
-  document.getElementById('paidTotal').textContent=money(paid);
-  document.getElementById('remainingTotal').textContent=money(remaining);
-  const pct = planned ? Math.round((paid/planned)*100) : 0;
-  document.getElementById('progressBar').style.width=pct+'%';
-
-  // Update all bills status
-  document.querySelectorAll('#allBills .row').forEach(r=>{
-    const id=r.dataset.id;
-    const status=r.querySelector('.status');
-    if(!id||!status) return;
-    const paidNow = !!state[id];
-    status.textContent = paidNow?'Paid':'Unpaid';
-    status.style.color = paidNow?'var(--good)':'var(--text-dim)';
-  });
-}
-
-// Toggle change handler
-document.addEventListener('change', async e=>{
-  if(e.target.matches('.toggle')){
-    const id=e.target.dataset.id;
-    state[id]=e.target.checked;
-    await saveState(state);
     recalcTotals();
   }
-});
 
-render();
+  function recalcTotals() {
+    const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
+    const planned = ALL_BILLS_ORDER.reduce((a,id)=> a + (byId[id]?.amount||0),0);
+    const paid = ALL_BILLS_ORDER.reduce((a,id)=> a + (state[id] ? (byId[id]?.amount||0) : 0),0);
+    const remaining = planned - paid;
+    document.getElementById('plannedTotal').textContent=money(planned);
+    document.getElementById('paidTotal').textContent=money(paid);
+    document.getElementById('remainingTotal').textContent=money(remaining);
+    const pct = planned ? Math.round((paid/planned)*100) : 0;
+    document.getElementById('progressBar').style.width=pct+'%';
+
+    document.querySelectorAll('#allBills .row').forEach(r=>{
+      const id=r.dataset.id;
+      const status=r.querySelector('.status');
+      if(!id||!status) return;
+      const paidNow = !!state[id];
+      status.textContent = paidNow?'Paid':'Unpaid';
+      status.style.color = paidNow?'var(--good)':'var(--text-dim)';
+    });
+  }
+
+  // Handle toggle changes
+  document.addEventListener('change', async e=>{
+    if(e.target.matches('.toggle')){
+      const id=e.target.dataset.id;
+      state[id]=e.target.checked;
+      try{
+        await setDoc(TOGGLE_DOC,state);
+      } catch(err){
+        console.warn("Failed to save toggle:", err);
+      }
+      recalcTotals();
+    }
+  });
+
+  render();
+}
+
+initTracker();
 </script>
 </body>
 </html>
