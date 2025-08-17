@@ -1,37 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Payment Reminders</title>
-  <link rel="stylesheet" href="style.css"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment Tracker Firebase</title>
 </head>
 <body>
-  <div class="container">
-    <h1>💸 Payment Reminders</h1>
-    <div id="payment-list"></div>
-  </div>
-  <link rel="manifest" href="/manifest.json" />
+<h1>Payment Tracker</h1>
+<div id="weeks"></div>
 
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then((registration) => {
-        console.log('Service Worker registered with scope:', registration.scope);
-      })
-      .catch((error) => {
-        console.log('Service Worker registration failed:', error);
-      });
-  }
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+  authDomain: "budget-tracker-1eea7.firebaseapp.com",
+  projectId: "budget-tracker-1eea7",
+  storageBucket: "budget-tracker-1eea7.appspot.com",
+  messagingSenderId: "579597071031",
+  appId: "1:579597071031:web:f30c2d42cc57268707d332"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const toggleDoc = doc(db, "toggles", "toggleStates");
+
+async function loadState() {
+  const snap = await getDoc(toggleDoc);
+  return snap.exists() ? snap.data() : {};
+}
+
+async function saveState(state) {
+  await setDoc(toggleDoc, state);
+}
+
+async function init() {
+  let state = await loadState();
+  console.log("Loaded state:", state);
+
+  // Example toggle simulation
+  state.testToggle = !state.testToggle;
+  await saveState(state);
+  console.log("Saved state:", state);
+}
+
+init();
 </script>
-
-  <script src="script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
