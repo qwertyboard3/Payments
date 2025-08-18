@@ -63,26 +63,32 @@ const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
 const BASE_WEEKS = [
-  { amount: 4005, bills: [
-    {id:'city', name:'City of Phoenix', amt:60, due:'2025-09-04'},
-    {id:'qs3064', name:'Quicksilver 3064', amt:100, due:'2025-09-11'},
-    {id:'progressive', name:'Progressive', amt:300, due:'2025-09-15'},
-    {id:'centurylink', name:'Century Link', amt:70, due:'2025-09-13'},
-    {id:'tmobile', name:'T-Mobile', amt:368, due:'2025-09-15'},
-    {id:'house', name:'House payment', amt:950, due:'2025-10-01'},
-    {id:'rogue', name:'Rogue', amt:700, due:'2025-09-03'},
-    {id:'hoa', name:'HOA', amt:160, due:'2025-09-01'},
-    {id:'kicks', name:'Kicks', amt:472, due:'2025-10-01'},
-    {id:'amazon', name:'Amazon Prime', amt:50, due:'2025-09-08'},
-    {id:'walmart', name:'Walmart', amt:75, due:'2025-09-17'},
-    {id:'qs5989', name:'Quicksilver 5989', amt:100, due:'2025-09-15'},
-    {id:'capitalone', name:'Capital One', amt:189, due:'2025-09-10'},
-    {id:'frontier', name:'Frontier', amt:65, due:'2025-09-15'},
-    {id:'chase', name:'Chase', amt:125, due:'2025-09-15'},
-    {id:'hawaiian', name:'Hawaiian Airlines', amt:65, due:'2025-09-15'},
-    {id:'fridge', name:'Fridge', amt:60, due:'2025-09-01'},
-    {id:'penasco', name:'Peñasco', amt:45, due:'2025-09-01'},
-    {id:'vegas', name:'Vegas', amt:51, due:'2025-09-01'}
+  { amount: 2017, bills: [
+    {id:'kicks', name:'Kicks', amt:472, due:'2025-08-22'},
+    {id:'progressive', name:'Progressive', amt:300, due:'2025-08-22'},
+    {id:'rogue', name:'Rogue', amt:700, due:'2025-08-22'},
+    {id:'fridge', name:'Fridge', amt:60, due:'2025-08-22'},
+    {id:'penasco', name:'Peñasco', amt:45, due:'2025-08-22'},
+    {id:'vegas', name:'Vegas', amt:51, due:'2025-08-22'},
+    {id:'amazon', name:'Amazon', amt:50, due:'2025-08-22'}
+  ]},
+  { amount: 2017, bills: [
+    {id:'house', name:'House payment', amt:950, due:'2025-09-05'},
+    {id:'qs3064', name:'Quicksilver 3064', amt:100, due:'2025-09-05'},
+    {id:'centurylink', name:'Century Link', amt:70, due:'2025-09-05'},
+    {id:'tmobile', name:'T-Mobile', amt:368, due:'2025-09-05'},
+    {id:'hoa', name:'HOA', amt:160, due:'2025-09-05'}
+  ]},
+  { amount: 650, bills: [
+    {id:'hawaiian', name:'Hawaiian Airlines', amt:65, due:'2025-08-29'},
+    {id:'city', name:'City of Phoenix', amt:60, due:'2025-08-29'},
+    {id:'chase', name:'Chase', amt:125, due:'2025-08-29'},
+    {id:'frontier', name:'Frontier', amt:65, due:'2025-08-29'}
+  ]},
+  { amount: 650, bills: [
+    {id:'walmart', name:'Walmart', amt:75, due:'2025-09-12'},
+    {id:'qs5989', name:'Quicksilver 5989', amt:100, due:'2025-09-12'},
+    {id:'capitalone', name:'Capital One', amt:189, due:'2025-09-12'}
   ]}
 ];
 
@@ -215,7 +221,6 @@ function renderMonthSummary(){
   }
 
   container.innerHTML = html;
-
   container.classList.toggle('all-paid', totalPaidForMonth === totalPlannedForMonth && totalPlannedForMonth > 0);
 }
 
@@ -229,7 +234,7 @@ document.addEventListener('change', async e=>{
   }
 });
 
-// --- Unified swipe + pull-to-refresh ---
+// --- Swipe + Pull-to-refresh ---
 let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 const SWIPE_THRESHOLD = 100;
 const PULL_THRESHOLD = 80;
@@ -242,7 +247,6 @@ weekContainer.addEventListener('touchstart', e=>{
 weekContainer.addEventListener('touchmove', e=>{
   touchEndX = e.touches[0].screenX;
   touchEndY = e.touches[0].screenY;
-  
   const deltaY = touchEndY - touchStartY;
   if(window.scrollY === 0 && deltaY > 0){
     e.preventDefault();
@@ -253,7 +257,6 @@ weekContainer.addEventListener('touchmove', e=>{
 weekContainer.addEventListener('touchend', e=>{
   const deltaX = touchEndX - touchStartX;
   const deltaY = touchEndY - touchStartY;
-
   if(Math.abs(deltaX) > Math.abs(deltaY)){
     if(deltaX < -SWIPE_THRESHOLD && currentWeekIndex < WEEKS.length - 1){
       currentWeekIndex++;
@@ -264,16 +267,13 @@ weekContainer.addEventListener('touchend', e=>{
       renderWeek();
     }
   }
-
   if(window.scrollY === 0 && deltaY > PULL_THRESHOLD){
     window.location.reload();
   }
-
-  document.body.style.transition = 'transform 0.3s ease';
   document.body.style.transform = 'translateY(0)';
-});
+}, { passive:false });
 
-// --- Firebase auth + load state ---
+// --- Firebase Authentication & Initial Load ---
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
   if(user){
@@ -281,7 +281,6 @@ onAuthStateChanged(auth, async user=>{
       const snap = await getDoc(TOGGLE_DOC);
       state = snap.exists()?snap.data():{};
     }catch(e){ console.warn("Error reading Firestore:",e); }
-
     const today = new Date();
     WEEKS.forEach((w,i)=>{
       const start = new Date(w.date);
@@ -289,12 +288,10 @@ onAuthStateChanged(auth, async user=>{
       end.setDate(start.getDate()+6);
       if(today>=start && today<=end) currentWeekIndex=i;
     });
-
     renderWeek();
   }
 });
 </script>
-
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
