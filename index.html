@@ -17,13 +17,12 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
+console.log("Firebase initialized.");
 
 // --- Arizona date helper ---
 function parseAZDate(str){
   const [y,m,d]=str.split('-').map(Number);
-  const azDate=new Date(Date.UTC(y,m-1,d,7,0,0)); // AZ UTC-7
-  console.log("parseAZDate", str, "->", azDate);
-  return azDate;
+  return new Date(Date.UTC(y,m-1,d,7,0,0)); // AZ UTC-7
 }
 
 // --- All bills ---
@@ -64,7 +63,6 @@ function generateWeeks(startDate,numWeeks){
       return due>=weekStart && due<new Date(weekStart.getTime()+7*24*60*60*1000);
     });
     const amount=billsThisWeek.reduce((acc,b)=>acc+b.amt,0);
-    console.log(`Week ${i+1}`, weekStart.toISOString().slice(0,10), "Amount:", amount, "Bills:", billsThisWeek.map(b=>b.name));
     weeks.push({date:weekStart.toISOString().slice(0,10),amount,bills:billsThisWeek});
   }
   return weeks;
@@ -76,20 +74,15 @@ function money(n){return '$'+Number(n).toLocaleString();}
 
 // --- Render ---
 function renderWeek(){
-  console.log("Rendering week", currentWeekIndex);
+  console.log("Rendering week index:", currentWeekIndex);
   const container=document.getElementById('weekContainer');
   container.innerHTML='';
   const pc=WEEKS[currentWeekIndex];
   let totalPaid=0;
-  pc.bills.forEach(b=>{
-    const toggleId=`${b.id}_${b.due}`;
-    if(state[toggleId]) totalPaid+=b.amt;
-    console.log("Toggle", toggleId, "checked:", !!state[toggleId]);
-  });
+  pc.bills.forEach(b=>{const toggleId=`${b.id}_${b.due}`; if(state[toggleId]) totalPaid+=b.amt;});
   const remaining=pc.amount-totalPaid;
   const pct=Math.round((totalPaid/pc.amount)*100);
 
-  // Pay date = earliest due
   const earliestDue=pc.bills.reduce((earliest,b)=>{
     const d=parseAZDate(b.due);
     return (!earliest||d<earliest)?d:earliest;
@@ -102,14 +95,17 @@ function renderWeek(){
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
+
   pc.bills.forEach(b=>{
     const toggleId=`${b.id}_${b.due}`;
     const checked=state[toggleId]?'checked':'';
     const dueDate=parseAZDate(b.due);
     const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
     html+=`<div class="row">
-      <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
-      <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
+      <label>
+        <span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}
+        <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
+      </label>
     </div>`;
   });
   html+=`</div>
@@ -126,13 +122,7 @@ function renderWeek(){
 function renderAllSummary(){
   const container=document.getElementById('allSummary');
   let planned=0,paid=0;
-  WEEKS.forEach(w=>{
-    w.bills.forEach(b=>{
-      planned+=b.amt;
-      const toggleId=`${b.id}_${b.due}`;
-      if(state[toggleId]) paid+=b.amt;
-    });
-  });
+  WEEKS.forEach(w=>{w.bills.forEach(b=>{planned+=b.amt;const toggleId=`${b.id}_${b.due}`;if(state[toggleId]) paid+=b.amt;});});
   container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
@@ -172,12 +162,10 @@ function renderMonthSummary(){
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
     const id=e.target.dataset.id;
-    console.log("Toggle changed:", id, "checked:", e.target.checked);
     state[id]=e.target.checked;
-    try{
-      await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});
-      console.log("Saved to Firestore:", id, state[id]);
-    }catch(err){ console.warn("Error saving:",err); }
+    console.log("Toggle changed:", id, state[id]);
+    try{await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true}); console.log("Saved to Firestore:", id);} 
+    catch(err){ console.warn("Error saving:",err);}
     renderWeek();
   }
 });
@@ -187,14 +175,17 @@ let touchStartX=0, touchStartY=0, touchEndX=0, touchEndY=0;
 const SWIPE_THRESHOLD=50;
 const weekContainer=document.getElementById('weekContainer');
 
-weekContainer.addEventListener('touchstart', e=>{touchStartX=e.touches[0].screenX;touchStartY=e.touches[0].screenY;},{passive:false});
-weekContainer.addEventListener('touchmove', e=>{touchEndX=e.touches[0].screenX;touchEndY=e.touches[0].screenY;const deltaY=touchEndY-touchStartY;if(window.scrollY===0 && deltaY>0){e.preventDefault();document.body.style.transform=`translateY(${deltaY}px)`;}},{passive:false});
+weekContainer.addEventListener('touchstart', e=>{touchStartX=e.touches[0].screenX; touchStartY=e.touches[0].screenY;}, {passive:false});
+weekContainer.addEventListener('touchmove', e=>{
+  touchEndX=e.touches[0].screenX; touchEndY=e.touches[0].screenY;
+  const deltaY=touchEndY-touchStartY;
+  if(window.scrollY===0 && deltaY>0){e.preventDefault(); document.body.style.transform=`translateY(${deltaY}px)`;}
+}, {passive:false});
 weekContainer.addEventListener('touchend', e=>{
-  const deltaX=touchEndX-touchStartX;const deltaY=touchEndY-touchStartY;
+  const deltaX=touchEndX-touchStartX; const deltaY=touchEndY-touchStartY;
   if(Math.abs(deltaX)>Math.abs(deltaY)&&Math.abs(deltaX)>SWIPE_THRESHOLD){
     if(deltaX<0 && currentWeekIndex<WEEKS.length-1) currentWeekIndex++;
     if(deltaX>0 && currentWeekIndex>0) currentWeekIndex--;
-    console.log("Swipe detected. New weekIndex:", currentWeekIndex);
     renderWeek();
   }
   document.body.style.transform='translateY(0)';
@@ -204,18 +195,20 @@ weekContainer.addEventListener('touchend', e=>{
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
   if(user){
+    console.log("User signed in:", user.uid);
     try{
-      const snap=await getDoc(TOGGLE_DOC);
+      const snap=await getDoc(TOGGLE_DOC); 
       state=snap.exists()?snap.data():{};
-      console.log("Firestore state loaded:", state);
-    }catch(e){ console.warn("Error reading Firestore:",e); }
+      console.log("Loaded toggles:", state);
+    }catch(e){ console.warn("Error reading Firestore:",e);}
+    
+    // Set current week to today
     const today=new Date();
     WEEKS.forEach((w,i)=>{
       const start=parseAZDate(w.date);
       const end=new Date(start.getTime()+6*24*60*60*1000);
       if(today>=start&&today<=end) currentWeekIndex=i;
     });
-    console.log("Initial weekIndex:", currentWeekIndex);
     renderWeek();
   }
 });
