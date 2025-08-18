@@ -30,12 +30,30 @@
 </div>
 <div id="weekContainer"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+
+// ===== Replace with your Firebase config =====
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_ID",
+  appId: "YOUR_APP_ID"
+};
+// ============================================
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
 const startDate = new Date("2025-08-22");
 const weekLength = 7*24*60*60*1000;
 let currentWeek;
 
-// Example default bills
+// Default bills
 const defaultBills = [
   {id:"phoenix", name:"City of Phoenix", amount:60},
   {id:"quicksilver", name:"Quicksilver 3064", amount:100},
@@ -44,15 +62,18 @@ const defaultBills = [
   {id:"amazon", name:"Amazon Prime", amount:50},
 ];
 
-// Store state locally for testing
-const weekStates = {};
+async function renderWeek(weekNum){
+  const weekDoc = doc(db, "weeks", "week"+weekNum);
+  let snap = await getDoc(weekDoc);
+  let state = snap.exists() ? snap.data() : {};
 
-function renderWeek(weekNum){
-  if(!weekStates[weekNum]) {
-    weekStates[weekNum] = {};
-    defaultBills.forEach(b=> weekStates[weekNum][b.id]=false);
+  // Auto-create week doc if missing
+  if(!snap.exists()){
+    const initialState = {};
+    defaultBills.forEach(b=>initialState[b.id]=false);
+    await setDoc(weekDoc, initialState);
+    state = initialState;
   }
-  const state = weekStates[weekNum];
 
   const weekStart = new Date(startDate.getTime() + (weekNum-1)*weekLength);
   const weekEnd = new Date(weekStart.getTime() + weekLength -1);
@@ -61,7 +82,7 @@ function renderWeek(weekNum){
   let paidCount = 0;
   let html = `<div class="week-card"><div class="progress"><div class="progress-bar" id="progressBar"></div></div>`;
   defaultBills.forEach(b=>{
-    const checked = state[b.id];
+    const checked = state[b.id] || false;
     if(checked) paidCount++;
     html += `<div class="bill">
       <span>${b.name} - $${b.amount}</span>
@@ -78,21 +99,28 @@ function renderWeek(weekNum){
   document.getElementById("totals").textContent = `Paid: $${defaultBills.filter(b=>state[b.id]).reduce((a,b)=>a+b.amount,0)} / $${defaultBills.reduce((a,b)=>a+b.amount,0)}`;
 
   document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-    cb.onchange = e=>{
+    cb.onchange = async e=>{
       state[e.target.dataset.id] = e.target.checked;
+      await setDoc(weekDoc, state, {merge:true});
       renderWeek(weekNum);
     };
   });
 }
 
+// Navigation
 document.getElementById("prevWeek").onclick = ()=>{ if(currentWeek>1){ currentWeek--; renderWeek(currentWeek); } };
 document.getElementById("nextWeek").onclick = ()=>{ currentWeek++; renderWeek(currentWeek); };
 
-// Initialize current week
-const today = new Date();
-currentWeek = Math.floor((today - startDate)/weekLength)+1;
-if(currentWeek<1) currentWeek=1;
-renderWeek(currentWeek);
+// Firebase Auth
+signInAnonymously(auth).catch(err=>alert("Auth error: "+err.message));
+onAuthStateChanged(auth, user=>{
+  if(user){
+    const today = new Date();
+    currentWeek = Math.floor((today - startDate)/weekLength)+1;
+    if(currentWeek<1) currentWeek=1;
+    renderWeek(currentWeek);
+  } else { alert("Not signed in"); }
+});
 </script>
 </body>
 </html>
