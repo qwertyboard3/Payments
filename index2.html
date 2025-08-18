@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pagos</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/pagos-icon-192.png">
+<meta name="theme-color" content="#7c5cff">
+<style>
+body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
+h1{text-align:center;margin:16px 0;}
+.card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;}
+.card h2{display:flex;justify-content:center;gap:10px;font-size:22px;margin-bottom:10px;}
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
+.row:last-child{border-bottom:none;}
+.toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
+.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
+.toggle:checked::after{left:23px;background:white;}
+.progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
+button{background:#252a36;color:#e6e8f0;border:none;padding:10px 18px;margin:6px;border-radius:6px;cursor:pointer;font-size:16px;}
+button:disabled{opacity:0.5;cursor:default;}
+.summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
+</style>
+</head>
+<body>
+<h1>Pagos</h1>
+<section id="weekContainer"></section>
+
+<div style="text-align:center;margin-top:10px;">
+  <button id="prevWeek">Previous</button>
+  <button id="nextWeek">Next</button>
+</div>
+
+<div class="summary" id="allSummary"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+  authDomain: "budget-tracker-1eea7.firebaseapp.com",
+  projectId: "budget-tracker-1eea7",
+  storageBucket: "budget-tracker-1eea7.firebasestorage.app",
+  messagingSenderId: "579597071031",
+  appId: "1:579597071031:web:f30c2d42cc57268707d332"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const TOGGLE_DOC = doc(db,"toggles","weeklyState");
+let state = {};
+
+const BASE_WEEKS = [
+  {amount:2017,bills:[
+    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+    {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
+    {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
+    {id:'fridge',name:'Fridge',amt:60,due:'10/01/2025'},
+    {id:'penasco',name:'Peñasco',amt:45,due:'10/01/2025'},
+    {id:'vegas',name:'Vegas',amt:51,due:'10/01/2025'},
+    {id:'amazon',name:'Amazon',amt:50,due:'10/08/2025'}
+  ]},
+  {amount:650,bills:[
+    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
+    {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
+    {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'}
+  ]},
+  {amount:2017,bills:[
+    {id:'house',name:'House Payment',amt:950,due:'11/01/2025'},
+    {id:'qs3064',name:'QS 3064',amt:100,due:'10/11/2025'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
+    {id:'hoa',name:'HOA',amt:160,due:'10/01/2025'}
+  ]},
+  {amount:650,bills:[
+    {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
+    {id:'qs5989',name:'QS 5989',amt:100,due:'10/15/2025'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'10/10/2025'}
+  ]}
+];
+
+function generateWeeks(startDate, numWeeks){
+  const weeks=[];
+  let date = new Date(startDate);
+  for(let i=0;i<numWeeks;i++){
+    const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
+    const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
+      const due = new Date(b.due);
+      due.setDate(due.getDate()+7*i);
+      const dueStr = due.toISOString().slice(0,10);
+      return {...b,due:dueStr};
+    })};
+    w.date = date.toISOString().slice(0,10);
+    weeks.push(w);
+    date.setDate(date.getDate()+7);
+  }
+  return weeks;
+}
+
+const WEEKS = generateWeeks('2025-08-22',12);
+let currentWeekIndex = 0;
+
+function money(n){return '$'+Number(n).toLocaleString();}
+
+function renderWeek(){
+  const container = document.getElementById('weekContainer');
+  container.innerHTML='';
+  const pc = WEEKS[currentWeekIndex];
+  let totalPaid=0;
+  pc.bills.forEach(b=>{
+    const toggleId = `${b.id}_${pc.date}`;
+    if(state[toggleId]) totalPaid+=b.amt;
+  });
+  const remaining = pc.amount - totalPaid;
+  const pct = Math.round((totalPaid/pc.amount)*100);
+
+  let html = `<div class="card">
+    <h2>${pc.date} | Income: ${money(pc.amount)}</h2>`;
+  pc.bills.forEach(b=>{
+    const toggleId = `${b.id}_${pc.date}`;
+    const checked = state[toggleId]?'checked':'';
+    html+=`<div class="row">
+      <span>${b.name} (Due: ${b.due}) - ${money(b.amt)}</span>
+      <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
+    </div>`;
+  });
+  html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+  </div>`;
+  container.innerHTML = html;
+
+  document.getElementById('prevWeek').disabled = currentWeekIndex===0;
+  document.getElementById('nextWeek').disabled = currentWeekIndex===WEEKS.length-1;
+
+  renderAllSummary();
+}
+
+function renderAllSummary(){
+  const container = document.getElementById('allSummary');
+  let planned=0, paid=0;
+  WEEKS.forEach(w=>{
+    w.bills.forEach(b=>{
+      planned+=b.amt;
+      const toggleId = `${b.id}_${w.date}`;
+      if(state[toggleId]) paid+=b.amt;
+    });
+  });
+  const remaining = planned - paid;
+  container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
+}
+
+document.addEventListener('change', async e=>{
+  if(e.target.matches('.toggle')){
+    const id = e.target.dataset.id;
+    state[id] = e.target.checked;
+    try{ await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true}); }
+    catch(err){ console.warn("Error saving:",err); }
+    renderWeek();
+  }
+});
+
+document.getElementById('prevWeek').addEventListener('click',()=>{
+  if(currentWeekIndex>0){ currentWeekIndex--; renderWeek(); }
+});
+document.getElementById('nextWeek').addEventListener('click',()=>{
+  if(currentWeekIndex<WEEKS.length-1){ currentWeekIndex++; renderWeek(); }
+});
+
+signInAnonymously(auth).catch(console.error);
+onAuthStateChanged(auth, async user=>{
+  if(user){
+    try{
+      const snap = await getDoc(TOGGLE_DOC);
+      state = snap.exists()?snap.data():{};
+    }catch(e){ console.warn("Error reading Firestore:",e); }
+    const today = new Date();
+    WEEKS.forEach((w,i)=>{
+      const start = new Date(w.date);
+      const end = new Date(start);
+      end.setDate(start.getDate()+6);
+      if(today>=start && today<=end) currentWeekIndex=i;
+    });
+    renderWeek();
+  }
+});
+</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
+}
+</script>
+</body>
+</html>
