@@ -3,39 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Payment Tracker Debug</title>
+<title>4-Week Payment Tracker</title>
 <style>
-body{background:#0f1115;color:#e6e8f0;font-family:system-ui;margin:0;padding:16px;}
+body{margin:0;padding:16px;font-family:system-ui;background:#0f1115;color:#e6e8f0;}
 h1,h2{margin:6px 0;}
-.log{background:#171923;padding:8px;margin:6px 0;border-radius:6px;white-space:pre-wrap;font-family:monospace;}
-.ok{color:#1db954;}
-.warn{color:#ffcc00;}
-.error{color:#ff5876;}
-.card{background:#171923;padding:12px;margin-bottom:12px;border-radius:8px;}
+.card{background:#171923;padding:16px;border-radius:12px;margin-bottom:16px;}
 .row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
 .row:last-child{border-bottom:none;}
 .toggle{appearance:none;width:40px;height:22px;border-radius:22px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
 .toggle::after{content:"";position:absolute;top:1px;left:1px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
 .toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
 .toggle:checked::after{left:19px;background:white;}
-.progress{height:8px;background:#242938;border-radius:8px;overflow:hidden;margin-top:6px;border:1px solid #32384e;}
+.progress{height:8px;background:#242938;border-radius:8px;overflow:hidden;margin-top:8px;border:1px solid #32384e;}
 .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
+button{background:#252a36;color:#e6e8f0;border:none;padding:8px 16px;margin:4px;border-radius:6px;cursor:pointer;}
+button:disabled{opacity:0.5;cursor:default;}
+.summary{margin-top:12px;padding:12px;background:#171923;border-radius:10px;}
 </style>
 </head>
 <body>
-<h1>Payment Tracker Debug</h1>
-<div id="logs" class="log"></div>
-<section id="weeks"></section>
+<h1>4-Week Payment Tracker</h1>
+<div>
+  <button id="prevWeek">Previous</button>
+  <button id="nextWeek">Next</button>
+</div>
+<section id="weekContainer"></section>
+<div class="summary" id="allSummary"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
 
-const logs = document.getElementById('logs');
-function log(msg,type='log'){ logs.innerHTML += `<div class="${type}">${msg}</div>`; }
-
-// Firebase Config
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
   authDomain: "budget-tracker-1eea7.firebaseapp.com",
@@ -45,105 +45,128 @@ const firebaseConfig = {
   appId: "1:579597071031:web:f30c2d42cc57268707d332"
 };
 
-let app, db, auth;
-try{
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-  log("Firebase initialized ✅", "ok");
-}catch(e){ log("Firebase init error: "+e, "error"); }
-
-// Monthly Payments / Paychecks
-const PAYCHECKS = [
-  { date:'2025-09-19', amount:2017, bills:[
-      {id:'kicks', name:'Kicks', amt:472},
-      {id:'progressive', name:'Progressive', amt:300},
-      {id:'rogue', name:'Rogue', amt:700},
-      {id:'fridge', name:'Fridge', amt:60},
-      {id:'penasco', name:'Peñasco', amt:45},
-      {id:'vegas', name:'Vegas', amt:51},
-      {id:'amazon', name:'Amazon', amt:50}
-    ]
-  },
-  { date:'2025-09-26', amount:650, bills:[
-      {id:'hawaiian', name:'Hawaiian Airlines', amt:65},
-      {id:'city', name:'City of Phoenix', amt:60},
-      {id:'chase', name:'Chase', amt:125},
-      {id:'frontier', name:'Frontier', amt:65}
-    ]
-  },
-  { date:'2025-10-03', amount:2017, bills:[
-      {id:'house', name:'House Payment', amt:950},
-      {id:'qs3064', name:'QS 3064', amt:100},
-      {id:'centurylink', name:'Century Link', amt:70},
-      {id:'tmobile', name:'T-Mobile', amt:368},
-      {id:'hoa', name:'HOA', amt:160}
-    ]
-  },
-  { date:'2025-10-10', amount:650, bills:[
-      {id:'walmart', name:'Walmart', amt:75},
-      {id:'qs5989', name:'QS 5989', amt:100},
-      {id:'capitalone', name:'Capital One', amt:189}
-    ]
-  }
-];
-
-const TOGGLE_DOC = doc(db, "toggles", "paychecks");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Helpers
-function money(n){ return '$'+Number(n).toLocaleString(); }
+// ====== Weeks and bills ======
+const WEEKS = [
+  {date:'2025-08-22', amount:2017, bills:[
+    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+    {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
+    {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
+    {id:'fridge',name:'Fridge',amt:60,due:'10/01/2025'},
+    {id:'penasco',name:'Peñasco',amt:45,due:'10/01/2025'},
+    {id:'vegas',name:'Vegas',amt:51,due:'10/01/2025'},
+    {id:'amazon',name:'Amazon',amt:50,due:'10/08/2025'}
+  ]},
+  {date:'2025-08-29', amount:650, bills:[
+    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
+    {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
+    {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'}
+  ]},
+  {date:'2025-09-05', amount:2017, bills:[
+    {id:'house',name:'House Payment',amt:950,due:'11/01/2025'},
+    {id:'qs3064',name:'QS 3064',amt:100,due:'10/11/2025'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
+    {id:'hoa',name:'HOA',amt:160,due:'10/01/2025'}
+  ]},
+  {date:'2025-09-12', amount:650, bills:[
+    {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
+    {id:'qs5989',name:'QS 5989',amt:100,due:'10/15/2025'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'10/10/2025'}
+  ]}
+];
 
-function renderWeeks(){
-  const container = document.getElementById('weeks');
+let currentWeekIndex = 0;
+
+// ====== Helpers ======
+function money(n){return '$'+Number(n).toLocaleString();}
+
+// Render single week
+function renderWeek(){
+  const container = document.getElementById('weekContainer');
   container.innerHTML='';
-  PAYCHECKS.forEach((pc,i)=>{
-    const card=document.createElement('div'); card.className='card';
-    let totalPaid=0;
-    let html=`<h2>Week ${i+1} - ${pc.date} | Income: ${money(pc.amount)}</h2>`;
-    pc.bills.forEach(b=>{
-      const checked = state[b.id]?'checked':'';
-      if(state[b.id]) totalPaid+=b.amt;
-      html+=`<div class="row">
-        <span>${b.name} (${money(b.amt)})</span>
-        <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
-      </div>`;
-    });
-    const remaining = pc.amount - totalPaid;
-    const pct = Math.round((totalPaid/pc.amount)*100);
-    html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
-      <div class="progress"><i style="width:${pct}%"></i></div>`;
-    card.innerHTML = html;
-    container.appendChild(card);
+  const pc = WEEKS[currentWeekIndex];
+  let totalPaid=0;
+  pc.bills.forEach(b=>{if(state[b.id]) totalPaid+=b.amt;});
+  const remaining = pc.amount - totalPaid;
+  const pct = Math.round((totalPaid/pc.amount)*100);
+
+  let html = `<div class="card">
+    <h2>Week ${currentWeekIndex+1} - ${pc.date} | Income: ${money(pc.amount)}</h2>`;
+  pc.bills.forEach(b=>{
+    const checked = state[b.id]?'checked':'';
+    html+=`<div class="row">
+      <span>${b.name} (Due: ${b.due}) - ${money(b.amt)}</span>
+      <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
+    </div>`;
   });
+  html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+  </div>`;
+  container.innerHTML = html;
+
+  document.getElementById('prevWeek').disabled = currentWeekIndex===0;
+  document.getElementById('nextWeek').disabled = currentWeekIndex===WEEKS.length-1;
+
+  renderAllSummary();
 }
 
-// Auth & Firestore
-signInAnonymously(auth).catch(e=>log("Anonymous sign-in error: "+e,"error"));
+// Summary across all weeks
+function renderAllSummary(){
+  const container = document.getElementById('allSummary');
+  let planned=0, paid=0;
+  WEEKS.forEach(w=>{
+    w.bills.forEach(b=>{
+      planned+=b.amt;
+      if(state[b.id]) paid+=b.amt;
+    });
+  });
+  const remaining = planned - paid;
+  container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
+}
+
+// Toggle handler
+document.addEventListener('change', async e=>{
+  if(e.target.matches('.toggle')){
+    const id = e.target.dataset.id;
+    state[id] = e.target.checked;
+    try{ await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true}); }
+    catch(err){ console.warn("Failed to save toggle:",err); }
+    renderWeek();
+  }
+});
+
+// Navigation
+document.getElementById('prevWeek').addEventListener('click',()=>{
+  if(currentWeekIndex>0){ currentWeekIndex--; renderWeek(); }
+});
+document.getElementById('nextWeek').addEventListener('click',()=>{
+  if(currentWeekIndex<WEEKS.length-1){ currentWeekIndex++; renderWeek(); }
+});
+
+// Firebase auth & load state
+signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
   if(user){
-    log("Signed in: "+user.uid,"ok");
     try{
       const snap = await getDoc(TOGGLE_DOC);
       state = snap.exists()?snap.data():{};
-      log("Loaded Firestore toggle state ✅","ok");
-    }catch(e){ log("Error reading Firestore: "+e,"error"); }
-    renderWeeks();
-  } else log("User not signed in ⚠️","warn");
-});
-
-// Handle toggle changes
-document.addEventListener('change', async e=>{
-  if(e.target.matches('.toggle')){
-    const id=e.target.dataset.id;
-    state[id]=e.target.checked;
-    try{
-      await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});
-      log("Updated "+id+" in Firestore ✅","ok");
-    }catch(err){
-      log("Failed to update "+id+": "+err,"error");
-    }
-    renderWeeks();
+    }catch(e){ console.warn("Error reading Firestore:",e); }
+    // Auto-select current week
+    const today = new Date();
+    WEEKS.forEach((w,i)=>{
+      const start = new Date(w.date);
+      const end = new Date(start);
+      end.setDate(start.getDate()+6);
+      if(today>=start && today<=end) currentWeekIndex=i;
+    });
+    renderWeek();
   }
 });
 </script>
