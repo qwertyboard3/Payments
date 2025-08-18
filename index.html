@@ -33,7 +33,7 @@
 </style>
 </head>
 <body>
-<h1>Pagos V1.4 </h1>
+<h1>Pagos</h1>
 <section id="weekContainer"></section>
 <div class="navigation-buttons">
   <button id="prevWeek">Previous</button>
@@ -43,6 +43,9 @@
 <div class="month-summary" id="monthSummary"></div>
 
 <script type="module">
+  // --- DEBUGGING LINE ---
+  alert("The script is running!");
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
