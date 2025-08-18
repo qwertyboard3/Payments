@@ -2,49 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>4‑Week Payment Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Payment Tracker</title>
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    margin:0; padding:0;
-    background:#f5f5f7; color:#1c1c1e;
-  }
-  header {
-    position: sticky; top:0; background:#fff;
-    padding:1rem; border-bottom:1px solid #ccc;
-    text-align:center; font-weight:bold;
-  }
-  .week-nav {
-    display:flex; justify-content:space-between; align-items:center;
-    padding:0.5rem 1rem; background:#fff; border-bottom:1px solid #ddd;
-  }
-  .week-card {
-    margin:1rem; padding:1rem; background:#fff;
-    border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.05);
-  }
-  .progress {
-    height:6px; border-radius:3px; background:#eee; margin:0.5rem 0 1rem;
-    overflow:hidden;
-  }
-  .progress-bar {
-    height:100%; background:#34c759; width:0%; transition:width 0.3s;
-  }
-  .bill {
-    display:flex; justify-content:space-between; align-items:center;
-    padding:0.75rem 0; border-bottom:1px solid #eee;
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:0; background:#f5f5f7; color:#1c1c1e; }
+  header { position: sticky; top:0; background:#fff; padding:1rem; border-bottom:1px solid #ccc; text-align:center; font-weight:bold; }
+  .week-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
+  .week-card { margin:1rem; padding:1rem; background:#fff; border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
+  .progress { height:6px; border-radius:3px; background:#eee; margin:0.5rem 0 1rem; overflow:hidden; }
+  .progress-bar { height:100%; background:#34c759; width:0%; transition:width 0.3s; }
+  .bill { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #eee; }
   .bill:last-child { border-bottom:none; }
   .ios-switch { position:relative; display:inline-block; width:52px; height:32px; }
   .ios-switch input { display:none; }
-  .slider {
-    position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
-    background:#ccc; border-radius:32px; transition:.4s;
-  }
-  .slider:before {
-    position:absolute; content:""; height:24px; width:24px;
-    left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s;
-  }
+  .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; border-radius:32px; transition:.4s; }
+  .slider:before { position:absolute; content:""; height:24px; width:24px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s; }
   input:checked + .slider { background:#34c759; }
   input:checked + .slider:before { transform:translateX(20px); }
 </style>
@@ -58,30 +30,13 @@
 </div>
 <div id="weekContainer"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-
-// ==== REPLACE with your Firebase Web App config ====
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-// ================================================
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-// Week setup
+<script>
 const startDate = new Date("2025-08-22");
 const weekLength = 7*24*60*60*1000;
 let currentWeek;
-const bills = [
+
+// Example default bills
+const defaultBills = [
   {id:"phoenix", name:"City of Phoenix", amount:60},
   {id:"quicksilver", name:"Quicksilver 3064", amount:100},
   {id:"progressive", name:"Progressive", amount:300},
@@ -89,20 +44,24 @@ const bills = [
   {id:"amazon", name:"Amazon Prime", amount:50},
 ];
 
-// ===== Render one week =====
-async function renderWeek(weekNum){
-  const weekDoc = doc(db,"weeks","week"+weekNum);
-  const snap = await getDoc(weekDoc);
-  const state = snap.exists() ? snap.data() : {};
-  
+// Store state locally for testing
+const weekStates = {};
+
+function renderWeek(weekNum){
+  if(!weekStates[weekNum]) {
+    weekStates[weekNum] = {};
+    defaultBills.forEach(b=> weekStates[weekNum][b.id]=false);
+  }
+  const state = weekStates[weekNum];
+
   const weekStart = new Date(startDate.getTime() + (weekNum-1)*weekLength);
   const weekEnd = new Date(weekStart.getTime() + weekLength -1);
   document.getElementById("weekLabel").textContent = `Week ${weekNum} (${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()})`;
 
   let paidCount = 0;
   let html = `<div class="week-card"><div class="progress"><div class="progress-bar" id="progressBar"></div></div>`;
-  bills.forEach(b=>{
-    const checked = state[b.id] || false;
+  defaultBills.forEach(b=>{
+    const checked = state[b.id];
     if(checked) paidCount++;
     html += `<div class="bill">
       <span>${b.name} - $${b.amount}</span>
@@ -115,32 +74,25 @@ async function renderWeek(weekNum){
   html += `</div>`;
   document.getElementById("weekContainer").innerHTML = html;
 
-  document.getElementById("progressBar").style.width = bills.length ? (paidCount/bills.length*100)+"%" : "0%";
-  document.getElementById("totals").textContent = `Paid: $${bills.filter(b=>state[b.id]).reduce((a,b)=>a+b.amount,0)} / $${bills.reduce((a,b)=>a+b.amount,0)}`;
+  document.getElementById("progressBar").style.width = defaultBills.length ? (paidCount/defaultBills.length*100)+"%" : "0%";
+  document.getElementById("totals").textContent = `Paid: $${defaultBills.filter(b=>state[b.id]).reduce((a,b)=>a+b.amount,0)} / $${defaultBills.reduce((a,b)=>a+b.amount,0)}`;
 
   document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-    cb.onchange = async e=>{
+    cb.onchange = e=>{
       state[e.target.dataset.id] = e.target.checked;
-      await setDoc(weekDoc,state,{merge:true});
       renderWeek(weekNum);
     };
   });
 }
 
-// ===== Navigation =====
 document.getElementById("prevWeek").onclick = ()=>{ if(currentWeek>1){ currentWeek--; renderWeek(currentWeek); } };
 document.getElementById("nextWeek").onclick = ()=>{ currentWeek++; renderWeek(currentWeek); };
 
-// ===== Auth + Init =====
-signInAnonymously(auth).catch(err=>alert("Auth error: "+err.message));
-onAuthStateChanged(auth, user=>{
-  if(user){
-    const today = new Date();
-    currentWeek = Math.floor((today - startDate)/weekLength)+1;
-    if(currentWeek<1) currentWeek = 1;
-    renderWeek(currentWeek);
-  } else { alert("Not signed in"); }
-});
+// Initialize current week
+const today = new Date();
+currentWeek = Math.floor((today - startDate)/weekLength)+1;
+if(currentWeek<1) currentWeek=1;
+renderWeek(currentWeek);
 </script>
 </body>
 </html>
