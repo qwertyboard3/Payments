@@ -4,8 +4,6 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME).then(cache => cache.addAll([
       '/',
       '/index.html',
-      '/assets/script.js',
-      '/assets/entries.js'
     ]))
   );
 });
