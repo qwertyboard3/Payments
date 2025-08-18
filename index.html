@@ -62,7 +62,7 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// === Base template bills ===
+// Base weeks template
 const BASE_WEEKS = [
   { amount: 2017, bills: [
     {id:'kicks',name:'Kicks',amt:472,due:'2025-10-01'},
@@ -89,39 +89,39 @@ const BASE_WEEKS = [
   ]}
 ];
 
-// === Generate weeks with shifted due dates ===
-function generateWeeks(startDate, numWeeks){
+// Generate weeks with Arizona time
+function generateWeeks(startDate,numWeeks){
   const weeks=[];
-  let parts = startDate.split('-');
-  let date = new Date(parts[0], parts[1]-1, parts[2]);
+  let parts=startDate.split('-');
+  let date=new Date(`${parts[0]}-${parts[1]}-${parts[2]}T00:00:00-07:00`); // Arizona time
 
   for(let i=0;i<numWeeks;i++){
-    const pattern = BASE_WEEKS[i % BASE_WEEKS.length];
-    const cycleOffset = Math.floor(i / BASE_WEEKS.length);
+    const pattern=BASE_WEEKS[i % BASE_WEEKS.length];
+    const cycleOffset=Math.floor(i / BASE_WEEKS.length);
 
-    const w = {
+    const w={
       amount: pattern.amount,
       bills: pattern.bills.map(b=>{
-        const baseDue = new Date(b.due);
-        const newDue = new Date(baseDue);
-        newDue.setMonth(baseDue.getMonth() + cycleOffset); // shift forward by cycles
-        return {...b, due:newDue.toISOString().slice(0,10)};
+        const baseDue=new Date(`${b.due}T00:00:00-07:00`);
+        const newDue=new Date(baseDue);
+        newDue.setMonth(baseDue.getMonth()+cycleOffset);
+        return {...b,due:newDue.toISOString().slice(0,10)};
       })
     };
 
-    w.date = date.toISOString().slice(0,10);
+    w.date=date.toISOString().slice(0,10);
     weeks.push(w);
     date.setDate(date.getDate()+7);
   }
   return weeks;
 }
 
-const WEEKS = generateWeeks('2025-08-22', 12);
-let currentWeekIndex = 0;
+const WEEKS=generateWeeks('2025-08-22',12);
+let currentWeekIndex=0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
 
-// === Render one week ===
+// Render one week
 function renderWeek(){
   const container=document.getElementById('weekContainer');
   container.innerHTML='';
@@ -138,7 +138,7 @@ function renderWeek(){
 
   let html=`<div class="card">
     <div class="card-header">
-      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
+      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
@@ -147,7 +147,7 @@ function renderWeek(){
     const toggleId=`${b.id}_${b.due}`;
     const checked=state[toggleId]?'checked':'';
     const dueDate=new Date(b.due);
-    const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+    const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
     html+=`<div class="row">
       <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
       <input type="checkbox" class="toggle" data-bill-id="${b.id}" data-due="${b.due}" ${checked}>
@@ -166,7 +166,7 @@ function renderWeek(){
   renderMonthSummary();
 }
 
-// === All-time summary ===
+// All-time summary
 function renderAllSummary(){
   const container=document.getElementById('allSummary');
   let planned=0,paid=0;
@@ -181,7 +181,7 @@ function renderAllSummary(){
   container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
 }
 
-// === Month summary ===
+// Month summary
 function renderMonthSummary(){
   const container=document.getElementById('monthSummary');
   const month=new Date(WEEKS[currentWeekIndex].date).getMonth();
@@ -207,7 +207,7 @@ function renderMonthSummary(){
   let totalPaidForMonth=0;
   let totalPlannedForMonth=0;
 
-  let html=`<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
+  let html=`<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long',timeZone:'America/Phoenix'})} Bills</h3>`;
 
   billsForDisplay.sort((a,b)=>new Date(a.due)-new Date(b.due));
 
@@ -216,7 +216,7 @@ function renderMonthSummary(){
       totalPlannedForMonth+=b.amt;
       if(b.isPaid) totalPaidForMonth+=b.amt;
       const dueDate=new Date(b.due);
-      const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+      const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
       const paidClass=b.isPaid?'paid-amount':'';
       html+=`<div class="bill-item">
         <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
@@ -231,56 +231,45 @@ function renderMonthSummary(){
   container.classList.toggle('all-paid', totalPaidForMonth===totalPlannedForMonth && totalPlannedForMonth>0);
 }
 
-// === Toggle handler ===
+// Toggle handler
 document.addEventListener('change',async e=>{
   if(e.target.matches('.toggle')){
     const billId=e.target.dataset.billId;
     const dueDate=e.target.dataset.due;
     const toggleId=`${billId}_${dueDate}`;
     state[toggleId]=e.target.checked;
-    renderWeek(); // update UI immediately
+    renderWeek();
     try{
       await setDoc(TOGGLE_DOC,{[toggleId]:state[toggleId]},{merge:true});
     }catch(err){console.warn("Error saving:",err);}
   }
 });
 
-// === Swipe gestures ===
+// Swipe gestures
 let touchstartX=0,touchendX=0;
 const SWIPE_THRESHOLD=100;
 const weekContainer=document.getElementById('weekContainer');
-
 function handleGesture(){
-  if(touchendX<touchstartX-SWIPE_THRESHOLD){
-    if(currentWeekIndex<WEEKS.length-1){currentWeekIndex++;renderWeek();}
-  }
-  if(touchendX>touchstartX+SWIPE_THRESHOLD){
-    if(currentWeekIndex>0){currentWeekIndex--;renderWeek();}
-  }
+  if(touchendX<touchstartX-SWIPE_THRESHOLD && currentWeekIndex<WEEKS.length-1){currentWeekIndex++;renderWeek();}
+  if(touchendX>touchstartX+SWIPE_THRESHOLD && currentWeekIndex>0){currentWeekIndex--;renderWeek();}
 }
-
 weekContainer.addEventListener('touchstart',e=>{touchstartX=e.changedTouches[0].screenX;});
 weekContainer.addEventListener('touchend',e=>{touchendX=e.changedTouches[0].screenX;handleGesture();});
 
-// === Pull to refresh ===
+// Pull to refresh
 let startY=0,endY=0;
 const PULL_THRESHOLD=80;
-
 document.addEventListener('touchstart',e=>{startY=e.touches[0].pageY;});
 document.addEventListener('touchmove',e=>{
   endY=e.touches[0].pageY;
-  if(window.scrollY===0 && endY>startY){
-    document.body.style.transform=`translateY(${endY-startY}px)`;
-  }
+  if(window.scrollY===0 && endY>startY) document.body.style.transform=`translateY(${endY-startY}px)`;
 });
 document.addEventListener('touchend',e=>{
-  if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD){
-    window.location.reload();
-  }
+  if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD) window.location.reload();
   document.body.style.transform=`translateY(0)`;
 });
 
-// === Firebase auth & init ===
+// Firebase auth & init
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth,async user=>{
   if(user){
@@ -299,6 +288,7 @@ onAuthStateChanged(auth,async user=>{
   }
 });
 </script>
+
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
