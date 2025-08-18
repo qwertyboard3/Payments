@@ -62,7 +62,7 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Base weeks template
+// Base weeks
 const BASE_WEEKS = [
   { amount: 2017, bills: [
     {id:'kicks',name:'Kicks',amt:472,due:'2025-10-01'},
@@ -89,20 +89,24 @@ const BASE_WEEKS = [
   ]}
 ];
 
-// Generate weeks with Arizona time
+// Parse dates as Arizona calendar dates (no timezone shift)
+function parseDateAZ(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  return new Date(y,m-1,d);
+}
+
+// Generate weeks
 function generateWeeks(startDate,numWeeks){
   const weeks=[];
-  let parts=startDate.split('-');
-  let date=new Date(`${parts[0]}-${parts[1]}-${parts[2]}T00:00:00-07:00`); // Arizona time
-
+  let date=parseDateAZ(startDate);
   for(let i=0;i<numWeeks;i++){
-    const pattern=BASE_WEEKS[i % BASE_WEEKS.length];
-    const cycleOffset=Math.floor(i / BASE_WEEKS.length);
+    const pattern=BASE_WEEKS[i%BASE_WEEKS.length];
+    const cycleOffset=Math.floor(i/BASE_WEEKS.length);
 
     const w={
       amount: pattern.amount,
       bills: pattern.bills.map(b=>{
-        const baseDue=new Date(`${b.due}T00:00:00-07:00`);
+        const baseDue=parseDateAZ(b.due);
         const newDue=new Date(baseDue);
         newDue.setMonth(baseDue.getMonth()+cycleOffset);
         return {...b,due:newDue.toISOString().slice(0,10)};
@@ -121,7 +125,7 @@ let currentWeekIndex=0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
 
-// Render one week
+// Render one week with progress bar per paydate
 function renderWeek(){
   const container=document.getElementById('weekContainer');
   container.innerHTML='';
@@ -138,7 +142,7 @@ function renderWeek(){
 
   let html=`<div class="card">
     <div class="card-header">
-      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'})}
+      <h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
@@ -146,7 +150,7 @@ function renderWeek(){
   pc.bills.forEach(b=>{
     const toggleId=`${b.id}_${b.due}`;
     const checked=state[toggleId]?'checked':'';
-    const dueDate=new Date(b.due);
+    const dueDate=parseDateAZ(b.due);
     const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
     html+=`<div class="row">
       <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
@@ -184,20 +188,17 @@ function renderAllSummary(){
 // Month summary
 function renderMonthSummary(){
   const container=document.getElementById('monthSummary');
-  const month=new Date(WEEKS[currentWeekIndex].date).getMonth();
-  const year=new Date(WEEKS[currentWeekIndex].date).getFullYear();
+  const month=parseDateAZ(WEEKS[currentWeekIndex].date).getMonth();
+  const year=parseDateAZ(WEEKS[currentWeekIndex].date).getFullYear();
 
   const allBills=WEEKS.flatMap(w=>w.bills);
-
   const groupedBills={};
   allBills.forEach(b=>{
-    const dueMonth=new Date(b.due).getMonth();
-    const dueYear=new Date(b.due).getFullYear();
+    const dueMonth=parseDateAZ(b.due).getMonth();
+    const dueYear=parseDateAZ(b.due).getFullYear();
     if(dueMonth===month && dueYear===year){
       const key=`${b.id}_${b.due}`;
-      if(!groupedBills[key]){
-        groupedBills[key]={...b,isPaid:false};
-      }
+      if(!groupedBills[key]) groupedBills[key]={...b,isPaid:false};
       const toggleId=`${b.id}_${b.due}`;
       if(state[toggleId]) groupedBills[key].isPaid=true;
     }
@@ -207,15 +208,14 @@ function renderMonthSummary(){
   let totalPaidForMonth=0;
   let totalPlannedForMonth=0;
 
-  let html=`<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long',timeZone:'America/Phoenix'})} Bills</h3>`;
-
-  billsForDisplay.sort((a,b)=>new Date(a.due)-new Date(b.due));
+  let html=`<h3>${parseDateAZ(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long',timeZone:'America/Phoenix'})} Bills</h3>`;
+  billsForDisplay.sort((a,b)=>parseDateAZ(a.due)-parseDateAZ(b.due));
 
   if(billsForDisplay.length>0){
     billsForDisplay.forEach(b=>{
       totalPlannedForMonth+=b.amt;
       if(b.isPaid) totalPaidForMonth+=b.amt;
-      const dueDate=new Date(b.due);
+      const dueDate=parseDateAZ(b.due);
       const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
       const paidClass=b.isPaid?'paid-amount':'';
       html+=`<div class="bill-item">
@@ -279,7 +279,7 @@ onAuthStateChanged(auth,async user=>{
     }catch(e){console.warn("Error reading Firestore:",e);}
     const today=new Date();
     WEEKS.forEach((w,i)=>{
-      const start=new Date(w.date);
+      const start=parseDateAZ(w.date);
       const end=new Date(start);
       end.setDate(start.getDate()+6);
       if(today>=start && today<=end) currentWeekIndex=i;
