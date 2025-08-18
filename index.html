@@ -62,34 +62,74 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
+const BILLS_FOR_FOUR_WEEKS = [
+  {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
+  {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
+  {id:'amazon',name:'Amazon prime',amt:50,due:'09/08/2025'},
+  {id:'capitalone',name:'Capital one',amt:189,due:'09/10/2025'},
+  {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
+  {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+  {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
+  {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
+  {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
+  {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
+  {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
+  {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+  {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
+  {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
+  {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
+  {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
+  {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
+  {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
+  {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+];
+
+// Helper function to calculate total amount for an array of bills
+const calculateTotal = (bills) => bills.reduce((sum, bill) => sum + bill.amt, 0);
+
+// Distribute bills across 4 weeks
 const BASE_WEEKS = [
-  {amount:451, bills:[
-    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
-    {id:'amazon',name:'Amazon prime',amt:50,due:'09/08/2025'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'},
-  ]},
-  {amount:109,bills:[
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
-    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'}
-  ]},
-  {amount:658,bills:[
-    {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'}
-  ]},
-  {amount:1486,bills:[
-    {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
-    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
-    {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
-    {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
-    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
-    {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
-    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-  ]}
+    { amount: 1533, bills: [
+        {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
+        {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
+        {id:'amazon',name:'Amazon prime',amt:50,due:'09/08/2025'},
+        {id:'capitalone',name:'Capital one',amt:189,due:'09/10/2025'},
+        {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
+        {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
+        {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
+        {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
+        {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
+        {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+        {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
+    ]},
+    { amount: 1205, bills: [
+        {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
+        {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
+        {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
+        {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
+        {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+        {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
+        {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
+    ]},
+    { amount: 1267, bills: [
+        {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+        {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
+        {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
+        {id:'amazon',name:'Amazon prime',amt:50,due:'10/08/2025'},
+        {id:'capitalone',name:'Capital one',amt:189,due:'10/10/2025'},
+        {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'10/11/2025'},
+        {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
+        {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
+    ]},
+    { amount: 1205, bills: [
+        {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
+        {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'10/15/2025'},
+        {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'},
+        {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
+        {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'10/15/2025'},
+        {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
+        {id:'house',name:'House payment',amt:950,due:'11/01/2025'},
+    ]},
 ];
 
 function generateWeeks(startDate, numWeeks){
@@ -99,7 +139,7 @@ function generateWeeks(startDate, numWeeks){
     const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
     const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
       const due = new Date(b.due);
-      // Adjust due dates based on week index
+      // Adjust due dates based on week index and pattern repetition
       const newDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
       newDue.setDate(newDue.getDate() + 7 * Math.floor(i / BASE_WEEKS.length) * BASE_WEEKS.length);
       return {...b, due: newDue.toISOString().slice(0,10)};
@@ -111,8 +151,7 @@ function generateWeeks(startDate, numWeeks){
   return weeks;
 }
 
-
-const WEEKS = generateWeeks('2025-08-22',12);
+const WEEKS = generateWeeks('2025-08-22', 8);
 let currentWeekIndex = 0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
@@ -178,7 +217,6 @@ function renderMonthSummary(){
 
   const allBills = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})));
   
-  // Group bills by due date to avoid duplicates
   const groupedBills = {};
   allBills.forEach(b => {
       const dueMonth = new Date(b.due).getMonth();
