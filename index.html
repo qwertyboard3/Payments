@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Payment Tracker</title>
+<title>Firebase Debug Weekly Tracker</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:0; background:#f5f5f7; color:#1c1c1e; }
+  body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:0; background:#f5f5f7; color:#1c1c1e; }
   header { position: sticky; top:0; background:#fff; padding:1rem; border-bottom:1px solid #ccc; text-align:center; font-weight:bold; }
   .week-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
   .week-card { margin:1rem; padding:1rem; background:#fff; border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
@@ -19,6 +19,7 @@
   .slider:before { position:absolute; content:""; height:24px; width:24px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s; }
   input:checked + .slider { background:#34c759; }
   input:checked + .slider:before { transform:translateX(20px); }
+  #debug { background:#222; color:#0f0; padding:1rem; font-family:monospace; overflow:auto; max-height:200px; }
 </style>
 </head>
 <body>
@@ -29,6 +30,7 @@
   <button id="nextWeek">▶︎</button>
 </div>
 <div id="weekContainer"></div>
+<div id="debug"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
@@ -49,11 +51,13 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+const debugEl = document.getElementById("debug");
+function logDebug(msg){ debugEl.innerHTML += msg + "<br>"; debugEl.scrollTop = debugEl.scrollHeight; }
+
 const startDate = new Date("2025-08-22");
 const weekLength = 7*24*60*60*1000;
 let currentWeek;
 
-// Default bills
 const defaultBills = [
   {id:"phoenix", name:"City of Phoenix", amount:60},
   {id:"quicksilver", name:"Quicksilver 3064", amount:100},
@@ -63,15 +67,25 @@ const defaultBills = [
 ];
 
 async function renderWeek(weekNum){
+  logDebug(`Rendering week ${weekNum}...`);
   const weekDoc = doc(db, "weeks", "week"+weekNum);
-  let snap = await getDoc(weekDoc);
-  let state = snap.exists() ? snap.data() : {};
+  let snap;
+  try {
+    snap = await getDoc(weekDoc);
+    logDebug(`Firestore read: ${snap.exists() ? "exists" : "not exists"}`);
+  } catch(e){
+    logDebug("Error reading Firestore: " + e.message);
+    return;
+  }
 
-  // Auto-create week doc if missing
+  let state = snap.exists() ? snap.data() : {};
   if(!snap.exists()){
     const initialState = {};
     defaultBills.forEach(b=>initialState[b.id]=false);
-    await setDoc(weekDoc, initialState);
+    try{
+      await setDoc(weekDoc, initialState);
+      logDebug("Created new Firestore week doc");
+    }catch(e){ logDebug("Error creating doc: "+e.message);}
     state = initialState;
   }
 
@@ -101,7 +115,10 @@ async function renderWeek(weekNum){
   document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
     cb.onchange = async e=>{
       state[e.target.dataset.id] = e.target.checked;
-      await setDoc(weekDoc, state, {merge:true});
+      try{
+        await setDoc(weekDoc, state, {merge:true});
+        logDebug(`Saved ${e.target.dataset.id}=${e.target.checked}`);
+      }catch(err){ logDebug("Error saving: "+err.message);}
       renderWeek(weekNum);
     };
   });
@@ -112,14 +129,20 @@ document.getElementById("prevWeek").onclick = ()=>{ if(currentWeek>1){ currentWe
 document.getElementById("nextWeek").onclick = ()=>{ currentWeek++; renderWeek(currentWeek); };
 
 // Firebase Auth
-signInAnonymously(auth).catch(err=>alert("Auth error: "+err.message));
+signInAnonymously(auth)
+  .then(u=> logDebug("Signed in: " + u.user.uid))
+  .catch(err=> logDebug("Auth error: "+err.message));
+
 onAuthStateChanged(auth, user=>{
   if(user){
+    logDebug("onAuthStateChanged: signed in");
     const today = new Date();
     currentWeek = Math.floor((today - startDate)/weekLength)+1;
     if(currentWeek<1) currentWeek=1;
     renderWeek(currentWeek);
-  } else { alert("Not signed in"); }
+  } else {
+    logDebug("onAuthStateChanged: not signed in");
+  }
 });
 </script>
 </body>
