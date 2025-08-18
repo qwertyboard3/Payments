@@ -29,9 +29,7 @@
       border-bottom: 1px solid #333;
     }
     .bill:last-child { border-bottom: none; }
-    .toggle {
-      margin-left: 10px;
-    }
+    .toggle { margin-left: 10px; }
     .remaining {
       font-weight: bold;
       margin-top: 10px;
@@ -47,8 +45,27 @@
   <h1>💰 Payments Tracker</h1>
   <div id="weeks"></div>
 
-  <script>
-    // === Your fixed weeks with bills ===
+  <!-- Firebase App SDK -->
+  <script type="module">
+    // Import Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // === Firebase Config ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+      authDomain: "budget-tracker-1eea7.firebaseapp.com",
+      projectId: "budget-tracker-1eea7",
+      storageBucket: "budget-tracker-1eea7.firebasestorage.app",
+      messagingSenderId: "579597071031",
+      appId: "1:579597071031:web:f30c2d42cc57268707d332"
+    };
+
+    // Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // === Your bills/weeks (fixed) ===
     const WEEKS = [
       {
         date: "08/23/2025",
@@ -95,24 +112,25 @@
       }
     ];
 
-    // === Local storage key ===
-    const STORAGE_KEY = "payments_tracker";
+    const STATE_DOC = doc(db, "payments", "trackerState");
 
-    // Load paid state from storage
-    function loadPaidState() {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    // Load paid state from Firestore
+    async function loadPaidState() {
+      const snap = await getDoc(STATE_DOC);
+      if (snap.exists()) return snap.data();
+      return {};
     }
 
-    // Save paid state
-    function savePaidState(state) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Save paid state to Firestore
+    async function savePaidState(state) {
+      await setDoc(STATE_DOC, state);
     }
 
     // Render weeks
-    function renderWeeks() {
+    async function renderWeeks() {
       const container = document.getElementById("weeks");
       container.innerHTML = "";
-      const paidState = loadPaidState();
+      const paidState = await loadPaidState();
 
       WEEKS.forEach((week, weekIndex) => {
         let totalBills = 0;
@@ -148,12 +166,13 @@
 
       // Attach toggle handlers
       document.querySelectorAll(".toggle").forEach(input => {
-        input.addEventListener("change", e => {
+        input.addEventListener("change", async e => {
           const id = e.target.dataset.id;
-          const state = loadPaidState();
-          state[id] = e.target.checked;
-          savePaidState(state);
-          renderWeeks(); // re-render to update totals/strike-through
+          const paid = e.target.checked;
+          const current = await loadPaidState();
+          current[id] = paid;
+          await savePaidState(current);
+          renderWeeks(); // refresh UI
         });
       });
     }
