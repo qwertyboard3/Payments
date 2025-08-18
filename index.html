@@ -173,7 +173,6 @@ function renderMonthSummary(){
   const month = new Date(WEEKS[currentWeekIndex].date).getMonth();
   const year = new Date(WEEKS[currentWeekIndex].date).getFullYear();
 
-  // Updated logic to get all bills for the month correctly
   const billsInMonth = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})))
                            .filter(b => {
                                const dueDate = new Date(b.due);
@@ -188,7 +187,8 @@ function renderMonthSummary(){
   // Sort bills by due date
   billsInMonth.sort((a,b) => new Date(a.due) - new Date(b.due));
 
-  billsInMonth.forEach(b => {
+  if (billsInMonth.length > 0) {
+    billsInMonth.forEach(b => {
       const toggleId = `${b.id}_${b.weekDate}`;
       const isPaid = state[toggleId];
       totalPlannedForMonth += b.amt;
@@ -201,7 +201,10 @@ function renderMonthSummary(){
                   <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
                   <span>${money(b.amt)}</span>
               </div>`;
-  });
+    });
+  } else {
+    html += `<p style="text-align: center;">No bills due this month.</p>`;
+  }
 
   container.innerHTML = html;
 
