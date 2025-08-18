@@ -1,260 +1,169 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>4-Week Payment Tracker</title>
-<meta name="description" content="Dark theme payment tracker with weekly toggles and totals, saving to Firebase Firestore."/>
-<style>
-:root{
-  --bg:#0f1115; --panel:#171923; --muted:#2a2f3a; --text:#e6e8f0;
-  --text-dim:#a7b0c0; --accent:#7c5cff; --good:#1db954; --warn:#ffcc00; --bad:#ff5876;
-}
-*{box-sizing:border-box}
-html,body{height:100%; margin:0; background:linear-gradient(180deg,#0d0f14,#0f1115 30%); color:var(--text); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";}
-.wrap{max-width:1100px;margin:28px auto;padding:0 16px}
-header{display:flex;gap:16px;align-items:baseline;justify-content:space-between;margin-bottom:18px}
-h1{font-size:26px;margin:0;letter-spacing:.2px}
-.sub{color:var(--text-dim)}
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
-.card{grid-column:span 6;background:var(--panel);border:1px solid var(--muted);border-radius:16px;padding:14px 14px 6px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
-@media (max-width:900px){.card{grid-column:span 12}}
-.card h2{font-size:18px;margin:2px 0 2px}
-.meta{display:flex;gap:10px;align-items:center;color:var(--text-dim);font-weight:600}
-.pill{display:inline-flex;gap:8px;align-items:center;padding:4px 10px;border-radius:999px;background:rgba(124,92,255,.12);color:#c7bbff;border:1px solid rgba(124,92,255,.35)}
-.pill.good{background:rgba(29,185,84,.12);color:#b6f7c9;border-color:rgba(29,185,84,.35)}
-table{width:100%;border-collapse:collapse;margin-top:8px}
-th,td{padding:10px 8px;border-bottom:1px solid var(--muted)}
-th{font-weight:700;color:var(--text-dim);text-align:left}
-td.amount{font-variant-numeric:tabular-nums;text-align:right}
-tfoot td{font-weight:700}
-.toggle{appearance:none;-webkit-appearance:none;width:46px;height:26px;border-radius:26px;display:inline-block;position:relative;outline:none;cursor:pointer;background:#252a36;border:1px solid #394055;transition:.2s}
-.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;box-shadow:0 1px 2px rgba(0,0,0,.45);transition:.2s}
-.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d}
-.toggle:checked::after{left:23px;background:white}
-.row{display:grid;grid-template-columns:minmax(140px,1.2fr) 1fr 110px 62px;align-items:center}
-.row > div, .row > label{padding:10px 8px;border-bottom:1px solid var(--muted)}
-.row.head{font-weight:700;color:var(--text-dim)}
-.row .amount{justify-self:end;font-variant-numeric:tabular-nums}
-.row .due{color:var(--text-dim)}
-.totals{display:flex;justify-content:space-between;gap:10px;padding:12px 6px 6px;font-weight:700}
-.totals .ok{color:var(--good)}
-.totals .bad{color:var(--bad)}
-.all{grid-column:span 12}
-.progress{height:8px;background:#242938;border-radius:8px;overflow:hidden;border:1px solid #32384e;margin-top:10px}
-.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%}
-.muted{color:var(--text-dim)}
-a{color:#9ac7ff;text-decoration:none}
-a:hover{text-decoration:underline}
-.foot{color:var(--text-dim);font-size:12px;margin-top:18px}
-</style>
+  <meta charset="UTF-8">
+  <title>Payments Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0; padding: 0;
+      background: #f5f5f7; color: #1c1c1e;
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: #fff; padding: 1rem;
+      border-bottom: 1px solid #ccc;
+      text-align: center;
+      font-weight: bold;
+    }
+    .week-nav {
+      display: flex; justify-content: space-between;
+      align-items: center; padding: 0.5rem 1rem;
+      background: #fff; border-bottom: 1px solid #ddd;
+    }
+    .week-card {
+      margin: 1rem; padding: 1rem;
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .progress {
+      height: 6px; border-radius: 3px; background: #eee; margin: 0.5rem 0 1rem;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; background: #34c759; width: 0%;
+      transition: width 0.3s ease;
+    }
+    .bill {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.75rem 0; border-bottom: 1px solid #eee;
+    }
+    .bill:last-child { border-bottom: none; }
+    .ios-switch {
+      position: relative; display: inline-block; width: 52px; height: 32px;
+    }
+    .ios-switch input { display:none; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc; border-radius: 32px;
+      transition: 0.4s;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 24px; width: 24px;
+      left: 4px; bottom: 4px;
+      background: white; border-radius: 50%;
+      transition: 0.4s;
+    }
+    input:checked + .slider {
+      background: #34c759;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-<div>
-<h1>4-Week Payment Tracker</h1>
-<div class="sub">Dark theme · Saves toggle state in Firebase Firestore</div>
-</div>
-<div class="sub">Total owed across all bills: <strong>$4,005</strong></div>
-</header>
+  <header id="totals">Loading...</header>
+  <div class="week-nav">
+    <button id="prevWeek">◀︎</button>
+    <div id="weekLabel">Week</div>
+    <button id="nextWeek">▶︎</button>
+  </div>
+  <div id="weekContainer"></div>
 
-<section class="grid" id="weeks"></section>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
-<section class="card all" id="allBillsCard">
-<h2>All Bills (within this 4-week window)</h2>
-<div class="row head">
-<div>Bill</div>
-<div class="due">Due date</div>
-<div class="amount">Amount</div>
-<div>Status</div>
-</div>
-<div id="allBills"></div>
-<div class="totals">
-<div>Planned total: <span id="plannedTotal">$4,005</span></div>
-<div>Marked paid: <span id="paidTotal" class="ok">$0</span></div>
-<div>Remaining: <span id="remainingTotal" class="bad">$4,005</span></div>
-</div>
-<div class="progress"><i id="progressBar"></i></div>
-<div class="foot">Click toggles to mark payments as paid — changes are saved automatically to Firebase.</div>
-</section>
-</div>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC2-xxx",
+      authDomain: "budget-tracker-1eea7.firebaseapp.com",
+      projectId: "budget-tracker-1eea7",
+      storageBucket: "budget-tracker-1eea7.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-<script type="module">
-// DEBUG startup
-document.body.insertAdjacentHTML("afterbegin","<p style='color:lime;font-weight:bold'>✅ Script running</p>");
+    // Week setup
+    const startDate = new Date("2025-08-22");
+    const today = new Date();
+    const weekLength = 7 * 24 * 60 * 60 * 1000;
+    let currentWeek = Math.floor((today - startDate) / weekLength) + 1;
+    if(currentWeek < 1) currentWeek = 1;
 
-// Firebase imports
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
+    // Example bills (replace with real data)
+    const bills = [
+      { id:"phoenix", name:"City of Phoenix", amount:60 },
+      { id:"quicksilver", name:"Quicksilver 3064", amount:100 },
+      { id:"progressive", name:"Progressive", amount:300 }
+    ];
 
-// DEBUG: show errors on page
-window.addEventListener("error", e => {
-  document.body.insertAdjacentHTML("beforeend", `<div style="color:red;font-weight:bold">🔥 ${e.message}</div>`);
-});
-window.addEventListener("unhandledrejection", e => {
-  document.body.insertAdjacentHTML("beforeend", `<div style="color:orange;font-weight:bold">⚠️ ${e.reason}</div>`);
-});
+    async function renderWeek(weekNum) {
+      const weekDoc = doc(db, "weeks", "week" + weekNum);
+      const snap = await getDoc(weekDoc);
+      const state = snap.exists() ? snap.data() : {};
 
-// Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
-  authDomain: "budget-tracker-1eea7.firebaseapp.com",
-  projectId: "budget-tracker-1eea7",
-  storageBucket: "budget-tracker-1eea7.appspot.com",
-  messagingSenderId: "579597071031",
-  appId: "1:579597071031:web:f30c2d42cc57268707d332"
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const TOGGLE_DOC = doc(db, "toggles", "states");
+      const weekStart = new Date(startDate.getTime() + (weekNum-1)*weekLength);
+      const weekEnd = new Date(weekStart.getTime() + weekLength - 1);
+      document.getElementById("weekLabel").textContent =
+        `Week ${weekNum} (${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()})`;
 
-// DEBUG message
-document.body.insertAdjacentHTML("beforeend","<div style='color:cyan'>📡 Firebase initialized</div>");
-
-// Data
-const WEEKS = [
-  { date: '08/22/2025', income: 2017, items: [
-    { id: 'kicks', name: 'Kicks', amount: 472, due: '10/01/2025' },
-    { id: 'progressive', name: 'Progressive', amount: 300, due: '09/15/2025' },
-    { id: 'rogue', name: 'Rogue', amount: 700, due: '09/03/2025' },
-    { id: 'fridge', name: 'Fridge', amount: 60, due: '09/01/2025' },
-    { id: 'penasco', name: 'Peñasco', amount: 45, due: '09/01/2025' },
-    { id: 'vegas', name: 'Vegas', amount: 51, due: '09/01/2025' },
-    { id: 'amazon', name: 'Amazon Prime', amount: 50, due: '09/08/2025' }
-  ]},
-  { date: '08/29/2025', income: 650, items: [
-    { id: 'hawaiian', name: 'Hawaiian Airlines', amount: 65, due: '09/15/2025' },
-    { id: 'city', name: 'City of Phoenix', amount: 60, due: '09/04/2025' },
-    { id: 'chase', name: 'Chase', amount: 125, due: '09/15/2025' },
-    { id: 'frontier', name: 'Frontier', amount: 65, due: '09/15/2025' }
-  ]},
-  { date: '09/05/2025', income: 2017, items: [
-    { id: 'house', name: 'House payment', amount: 950, due: '10/01/2025' },
-    { id: 'qs3064', name: 'Quicksilver 3064', amount: 100, due: '09/11/2025' },
-    { id: 'centurylink', name: 'Century Link', amount: 70, due: '09/13/2025' },
-    { id: 'tmobile', name: 'T-Mobile', amount: 368, due: '09/15/2025' },
-    { id: 'hoa', name: 'HOA', amount: 160, due: '09/01/2025' }
-  ]},
-  { date: '09/12/2025', income: 650, items: [
-    { id: 'walmart', name: 'Walmart', amount: 75, due: '09/17/2025' },
-    { id: 'qs5989', name: 'Quicksilver 5989', amount: 100, due: '09/15/2025' },
-    { id: 'capitalone', name: 'Capital One', amount: 189, due: '09/10/2025' }
-  ]}
-];
-const ALL_BILLS_ORDER = [
-  'city','qs3064','progressive','centurylink','tmobile','house','rogue','hoa','kicks','amazon','walmart','qs5989','capitalone','frontier','chase','hawaiian','fridge','penasco','vegas'
-];
-
-// Helpers
-function num(n){ return Number(n).toLocaleString(undefined,{maximumFractionDigits:0}); }
-function money(n){ return `$${Number(n).toLocaleString(undefined,{minimumFractionDigits:0, maximumFractionDigits:0})}`; }
-
-// Tracker
-function initTracker() {
-  let state = {};
-  const weeksEl = document.getElementById('weeks');
-  const allBillsEl = document.getElementById('allBills');
-
-  async function loadState() {
-    try {
-      const snap = await getDoc(TOGGLE_DOC);
-      state = snap.exists() ? snap.data() : {};
-    } catch(e){ console.warn("Failed to load toggles:", e); }
-  }
-
-  function render() {
-    weeksEl.innerHTML = '';
-    WEEKS.forEach(week => {
-      const card = document.createElement('section');
-      card.className = 'card';
-      const totalThisWeek = (week.items||[]).reduce((a,b)=>a+b.amount,0);
-      const remaining = week.income - totalThisWeek;
-      card.innerHTML = `<h2>${week.date} <span class="meta">· <span class="pill">Income $${num(week.income)}</span> <span class="pill good">Planned $${num(totalThisWeek)}</span></span></h2>
-        <div class="row head"><div>Item</div><div class="due">Due</div><div class="amount">Amount</div><div>Paid</div></div>`;
-      week.items.forEach(it=>{
-        const row = document.createElement('div');
-        row.className='row';
-        row.innerHTML = `<div>${it.name}</div><div class="due">${it.due}</div><div class="amount">$${num(it.amount)}</div>
-          <label><input type="checkbox" class="toggle" data-id="${it.id}" ${state[it.id]?'checked':''}></label>`;
-        card.appendChild(row);
+      let paid = 0;
+      let total = bills.length;
+      let html = `<div class="week-card"><div class="progress"><div class="progress-bar" id="progressBar"></div></div>`;
+      bills.forEach(b => {
+        const checked = state[b.id] || false;
+        if(checked) paid++;
+        html += `
+          <div class="bill">
+            <span>${b.name} - $${b.amount}</span>
+            <label class="ios-switch">
+              <input type="checkbox" data-id="${b.id}" ${checked?"checked":""}>
+              <span class="slider"></span>
+            </label>
+          </div>`;
       });
-      const totals = document.createElement('div');
-      totals.className='totals';
-      totals.innerHTML = `<div>Week total: <strong>$${num(totalThisWeek)}</strong></div>
-        <div>Remaining from paycheck: <span class="${remaining>=0?'ok':'bad'}">$${num(remaining)}</span></div>`;
-      card.appendChild(totals);
-      weeksEl.appendChild(card);
-    });
+      html += `</div>`;
+      document.getElementById("weekContainer").innerHTML = html;
 
-    // All Bills Table
-    allBillsEl.innerHTML='';
-    const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
-    ALL_BILLS_ORDER.forEach(id=>{
-      const it=byId[id];
-      if(!it) return;
-      const row = document.createElement('div');
-      row.className='row';
-      row.dataset.id=id;
-      row.innerHTML = `<div>${it.name}</div><div class="due">${it.due}</div><div class="amount">$${num(it.amount)}</div>
-        <div class="status muted">${state[id]?'Paid':'Unpaid'}</div>`;
-      allBillsEl.appendChild(row);
-    });
-    recalcTotals();
-  }
+      updateProgress(paid,total);
+      updateTotals();
 
-  function recalcTotals() {
-    const byId = Object.fromEntries(WEEKS.flatMap(w=>w.items).map(it=>[it.id,it]));
-    const planned = ALL_BILLS_ORDER.reduce((a,id)=> a + (byId[id]?.amount||0),0);
-    const paid = ALL_BILLS_ORDER.reduce((a,id)=> a + (state[id] ? (byId[id]?.amount||0) : 0),0);
-    const remaining = planned - paid;
-    document.getElementById('plannedTotal').textContent=money(planned);
-    document.getElementById('paidTotal').textContent=money(paid);
-    document.getElementById('remainingTotal').textContent=money(remaining);
-    const pct = planned ? Math.round((paid/planned)*100) : 0;
-    document.getElementById('progressBar').style.width=pct+'%';
-
-    document.querySelectorAll('#allBills .row').forEach(r=>{
-      const id=r.dataset.id;
-      const status=r.querySelector('.status');
-      if(!id||!status) return;
-      const paidNow = !!state[id];
-      status.textContent = paidNow?'Paid':'Unpaid';
-      status.style.color = paidNow?'var(--good)':'var(--text-dim)';
-    });
-  }
-
-  // Handle toggle changes
-  document.addEventListener('change', async e=>{
-    if(e.target.matches('.toggle')){
-      const id=e.target.dataset.id;
-      state[id]=e.target.checked;
-      try{
-        await setDoc(TOGGLE_DOC, { [id]: state[id] }, { merge: true });
-      } catch(err){
-        console.warn("Failed to save toggle:", err);
-      }
-      recalcTotals();
+      document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+        cb.onchange = async e=>{
+          state[e.target.dataset.id] = e.target.checked;
+          await setDoc(weekDoc, state, { merge:true });
+          renderWeek(weekNum); // re-render to update progress
+        };
+      });
     }
-  });
 
-  loadState().then(render);
-}
+    function updateProgress(paid,total){
+      const pct = total? (paid/total*100) : 0;
+      document.getElementById("progressBar").style.width = pct+"%";
+    }
 
-// Sign in
-signInAnonymously(auth).catch(err => {
-  document.body.insertAdjacentHTML("beforeend", `<div style="color:red">❌ Sign-in error: ${err.message}</div>`);
-});
-onAuthStateChanged(auth, user => {
-  if(user) {
-    document.body.insertAdjacentHTML("beforeend","<div style='color:lime'>👤 Signed in anonymously</div>");
-    initTracker();
-  } else {
-    document.body.insertAdjacentHTML("beforeend","<div style='color:red'>⚠️ User not signed in</div>");
-  }
-});
-</script>
+    function updateTotals(){
+      document.getElementById("totals").textContent =
+        "Payments Tracker";
+    }
+
+    // Auth + init
+    signInAnonymously(auth).catch(err=>alert("Auth error: "+err.message));
+    onAuthStateChanged(auth, user=>{
+      if(user){ renderWeek(currentWeek); }
+    });
+
+    // Navigation
+    document.getElementById("prevWeek").onclick=()=>{ if(currentWeek>1){ currentWeek--; renderWeek(currentWeek); } };
+    document.getElementById("nextWeek").onclick=()=>{ currentWeek++; renderWeek(currentWeek); };
+  </script>
 </body>
 </html>
