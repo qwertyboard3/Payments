@@ -23,7 +23,9 @@
   .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
   .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
   .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
-  .month-summary{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px;}
+  .month-summary{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px; transition: background-color 0.5s ease;}
+  .month-summary.all-paid{background-color: #179d4d; color: white;}
+  .month-summary.all-paid .bill-item{border-color: #22d06e;}
   .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
   .bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
   .bill-item:last-child{border-bottom:none;}
@@ -169,38 +171,44 @@ function renderAllSummary(){
 function renderMonthSummary(){
   const container = document.getElementById('monthSummary');
   const month = new Date(WEEKS[currentWeekIndex].date).getMonth();
-  const billsInMonth = WEEKS.filter(w => new Date(w.date).getMonth() === month)
-                          .flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})));
+  const year = new Date(WEEKS[currentWeekIndex].date).getFullYear();
 
-  const groupedBills = {};
-  billsInMonth.forEach(b => {
-      const billMonth = new Date(b.due).getMonth();
-      if(billMonth === month) {
-          if (!groupedBills[b.name]) {
-              groupedBills[b.name] = { totalAmount: 0, paidAmount: 0, count: 0 };
-          }
-          groupedBills[b.name].totalAmount += b.amt;
-          groupedBills[b.name].count++;
-          const toggleId = `${b.id}_${b.weekDate}`;
-          if (state[toggleId]) {
-              groupedBills[b.name].paidAmount += b.amt;
-          }
-      }
-  });
+  const billsInMonth = WEEKS.flatMap(w => w.bills)
+                           .filter(b => {
+                               const dueDate = new Date(b.due);
+                               return dueDate.getMonth() === month && dueDate.getFullYear() === year;
+                           });
+
+  let totalPlannedForMonth = 0;
+  let totalPaidForMonth = 0;
 
   let html = `<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US', {month:'long'})} Bills</h3>`;
   
-  const sortedBillNames = Object.keys(groupedBills).sort();
-  
-  sortedBillNames.forEach(billName => {
-      const billData = groupedBills[billName];
+  // Sort bills by due date
+  billsInMonth.sort((a,b) => new Date(a.due) - new Date(b.due));
+
+  billsInMonth.forEach(b => {
+      const toggleId = `${b.id}_${b.weekDate}`;
+      const isPaid = state[toggleId];
+      totalPlannedForMonth += b.amt;
+      if (isPaid) {
+          totalPaidForMonth += b.amt;
+      }
+      const dueDate = new Date(b.due);
+      const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
       html += `<div class="bill-item">
-                  <span><strong>${billName}</strong></span>
-                  <span>${money(billData.paidAmount)} / ${money(billData.totalAmount)}</span>
+                  <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
+                  <span>${money(b.amt)}</span>
               </div>`;
   });
-  
+
   container.innerHTML = html;
+
+  if (totalPaidForMonth === totalPlannedForMonth && totalPlannedForMonth > 0) {
+      container.classList.add('all-paid');
+  } else {
+      container.classList.remove('all-paid');
+  }
 }
 
 document.addEventListener('change', async e=>{
