@@ -1,7 +1,4 @@
 <script type="module">
-// --- DEBUGGING LINE ---
-// alert("The script is running!");
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
 import { 
   initializeFirestore, 
@@ -22,7 +19,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// 🔑 Use in-memory cache instead of IndexedDB (fixes corruption issue)
+// ✅ Force memory-only cache (no IndexedDB, avoids corruption)
 const db = initializeFirestore(app, {
   localCache: memoryLocalCache()
 });
@@ -31,9 +28,7 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// === your MASTER_BILLS, PAY_DATES, functions, render logic stay the same ===
-// (keep everything else you had exactly as before)
-
+// === Bills & Pay Dates ===
 const MASTER_BILLS = [
   {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
   {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
@@ -66,9 +61,40 @@ const PAY_DATES = [
   { date: '2025-10-03', amount: 2017 },
 ];
 
-// === keep generateWeeks(), renderWeek(), renderAllSummary(), renderMonthSummary(), event listeners, swipe handling, pull-to-refresh logic ===
+// === Functions ===
+function generateWeeks() {
+  const weeks = [];
+  for (let i = 0; i < PAY_DATES.length; i++) {
+    const payDate = PAY_DATES[i].date;
+    const income = PAY_DATES[i].amount;
 
-// (paste the rest of your original functions unchanged here)
+    let nextPayDate = new Date(new Date(payDate + 'T12:00:00'));
+    nextPayDate.setDate(nextPayDate.getDate() + 7);
+
+    if (i < PAY_DATES.length - 1) {
+        nextPayDate = new Date(PAY_DATES[i + 1].date + 'T12:00:00');
+    }
+
+    const billsForWeek = MASTER_BILLS.filter(bill => {
+      const dueDate = new Date(bill.due + 'T12:00:00');
+      const payDateObj = new Date(payDate + 'T12:00:00');
+      return dueDate >= payDateObj && dueDate < nextPayDate;
+    });
+
+    weeks.push({
+      date: payDate,
+      amount: income,
+      bills: billsForWeek
+    });
+  }
+  return weeks;
+}
+
+const WEEKS = generateWeeks();   // ✅ put this back
+let currentWeekIndex = 0;
+
+// ... keep your renderWeek(), renderAllSummary(), renderMonthSummary(),
+// event listeners, swipe logic, pull-to-refresh here unchanged ...
 
 // === Auth & Firestore sync ===
 signInAnonymously(auth).catch(console.error);
