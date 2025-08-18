@@ -3,24 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Firebase Debug Page</title>
+<title>Payment Tracker Debug</title>
 <style>
-  body{background:#0f1115;color:#e6e8f0;font-family:system-ui;margin:0;padding:16px;}
-  h1,h2{margin:6px 0;}
-  .log{background:#171923;padding:8px;margin:6px 0;border-radius:6px;white-space:pre-wrap;font-family:monospace;}
-  .ok{color:#1db954;}
-  .warn{color:#ffcc00;}
-  .error{color:#ff5876;}
-  .card{background:#171923;padding:12px;margin-bottom:12px;border-radius:8px;}
-  .row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2a2f3a;}
-  .row:last-child{border-bottom:none;}
-  input[type=checkbox]{width:20px;height:20px;}
+body{background:#0f1115;color:#e6e8f0;font-family:system-ui;margin:0;padding:16px;}
+h1,h2{margin:6px 0;}
+.log{background:#171923;padding:8px;margin:6px 0;border-radius:6px;white-space:pre-wrap;font-family:monospace;}
+.ok{color:#1db954;}
+.warn{color:#ffcc00;}
+.error{color:#ff5876;}
+.card{background:#171923;padding:12px;margin-bottom:12px;border-radius:8px;}
+.row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
+.row:last-child{border-bottom:none;}
+.toggle{appearance:none;width:40px;height:22px;border-radius:22px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
+.toggle::after{content:"";position:absolute;top:1px;left:1px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
+.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
+.toggle:checked::after{left:19px;background:white;}
+.progress{height:8px;background:#242938;border-radius:8px;overflow:hidden;margin-top:6px;border:1px solid #32384e;}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
 </style>
 </head>
 <body>
-<h1>Firebase Debug Page</h1>
+<h1>Payment Tracker Debug</h1>
 <div id="logs" class="log"></div>
-<section id="paychecks"></section>
+<section id="weeks"></section>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
@@ -30,7 +35,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
 const logs = document.getElementById('logs');
 function log(msg,type='log'){ logs.innerHTML += `<div class="${type}">${msg}</div>`; }
 
-// ===== Firebase Config =====
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
   authDomain: "budget-tracker-1eea7.firebaseapp.com",
@@ -40,7 +45,6 @@ const firebaseConfig = {
   appId: "1:579597071031:web:f30c2d42cc57268707d332"
 };
 
-log("Initializing Firebase...");
 let app, db, auth;
 try{
   app = initializeApp(firebaseConfig);
@@ -49,7 +53,7 @@ try{
   log("Firebase initialized ✅", "ok");
 }catch(e){ log("Firebase init error: "+e, "error"); }
 
-// ===== Paychecks Data =====
+// Monthly Payments / Paychecks
 const PAYCHECKS = [
   { date:'2025-09-19', amount:2017, bills:[
       {id:'kicks', name:'Kicks', amt:472},
@@ -87,58 +91,59 @@ const PAYCHECKS = [
 const TOGGLE_DOC = doc(db, "toggles", "paychecks");
 let state = {};
 
-// ===== Helpers =====
+// Helpers
 function money(n){ return '$'+Number(n).toLocaleString(); }
-function renderPaychecks(){
-  const container = document.getElementById('paychecks');
+
+function renderWeeks(){
+  const container = document.getElementById('weeks');
   container.innerHTML='';
   PAYCHECKS.forEach((pc,i)=>{
-    const card = document.createElement('div'); card.className='card';
-    let html = `<h2>Week ${i+1} - ${pc.date} | Amount: ${money(pc.amount)}</h2>`;
+    const card=document.createElement('div'); card.className='card';
     let totalPaid=0;
+    let html=`<h2>Week ${i+1} - ${pc.date} | Income: ${money(pc.amount)}</h2>`;
     pc.bills.forEach(b=>{
       const checked = state[b.id]?'checked':'';
       if(state[b.id]) totalPaid+=b.amt;
-      html += `<div class="row">
+      html+=`<div class="row">
         <span>${b.name} (${money(b.amt)})</span>
         <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
       </div>`;
     });
-    const remaining = pc.amount-totalPaid;
-    html += `<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>`;
+    const remaining = pc.amount - totalPaid;
+    const pct = Math.round((totalPaid/pc.amount)*100);
+    html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
+      <div class="progress"><i style="width:${pct}%"></i></div>`;
     card.innerHTML = html;
     container.appendChild(card);
   });
 }
 
-// ===== Auth & Firestore =====
+// Auth & Firestore
 signInAnonymously(auth).catch(e=>log("Anonymous sign-in error: "+e,"error"));
 onAuthStateChanged(auth, async user=>{
   if(user){
-    log("Signed in anonymously: "+user.uid, "ok");
+    log("Signed in: "+user.uid,"ok");
     try{
       const snap = await getDoc(TOGGLE_DOC);
       state = snap.exists()?snap.data():{};
-      log("Loaded Firestore toggle state ✅", "ok");
+      log("Loaded Firestore toggle state ✅","ok");
     }catch(e){ log("Error reading Firestore: "+e,"error"); }
-    renderPaychecks();
-  } else {
-    log("User not signed in ⚠️", "warn");
-  }
+    renderWeeks();
+  } else log("User not signed in ⚠️","warn");
 });
 
-// ===== Checkbox updates =====
+// Handle toggle changes
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
     const id=e.target.dataset.id;
     state[id]=e.target.checked;
     try{
       await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});
-      log("Updated "+id+" in Firestore ✅", "ok");
+      log("Updated "+id+" in Firestore ✅","ok");
     }catch(err){
       log("Failed to update "+id+": "+err,"error");
     }
-    renderPaychecks();
+    renderWeeks();
   }
 });
 </script>
