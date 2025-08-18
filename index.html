@@ -7,29 +7,39 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f5f5f5;
-      color: #222;
+      margin: 0;
+      padding: 20px;
+      background: #121212;
+      color: #eee;
     }
     h1 { color: #7c5cff; }
     .week {
-      background: white;
+      background: #1e1e1e;
       border-radius: 12px;
       padding: 15px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
+    .week h2 { margin-top: 0; }
     .bill {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 6px 0;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid #333;
     }
     .bill:last-child { border-bottom: none; }
+    .toggle {
+      margin-left: 10px;
+    }
     .remaining {
       font-weight: bold;
       margin-top: 10px;
-      color: green;
+      color: #4caf50;
+    }
+    .paid {
+      text-decoration: line-through;
+      opacity: 0.6;
     }
   </style>
 </head>
@@ -38,90 +48,117 @@
   <div id="weeks"></div>
 
   <script>
-    // === Bills with due dates ===
-    const BASE_BILLS = [
-      { name: "City of Phoenix", amount: 60, due: "2025-09-05" },
-      { name: "Quicksilver 3064", amount: 100, due: "2025-09-12" },
-      { name: "Progressive", amount: 300, due: "2025-09-16" },
-      { name: "Century Link", amount: 70, due: "2025-09-14" },
-      { name: "T-Mobile", amount: 368, due: "2025-09-16" },
-      { name: "House payment", amount: 950, due: "2025-09-29" },
-      { name: "Rogue", amount: 700, due: "2025-09-03" },
-      { name: "HOA", amount: 160, due: "2025-09-01" },
-      { name: "Kicks", amount: 472, due: "2025-09-30" },
-      { name: "Amazon Prime", amount: 50, due: "2025-09-08" },
-      { name: "Walmart", amount: 75, due: "2025-09-18" },
-      { name: "Quicksilver 5989", amount: 100, due: "2025-09-16" },
-      { name: "Capital One", amount: 189, due: "2025-09-11" },
-      { name: "Frontier", amount: 65, due: "2025-09-16" },
-      { name: "Chase", amount: 125, due: "2025-09-16" },
-      { name: "Hawaiian Airlines", amount: 65, due: "2025-09-16" },
-      { name: "Fridge", amount: 60, due: "2025-09-01" },
-      { name: "Peñasco", amount: 45, due: "2025-09-01" },
-      { name: "Vegas", amount: 51, due: "2025-09-01" }
+    // === Your fixed weeks with bills ===
+    const WEEKS = [
+      {
+        date: "08/23/2025",
+        amount: 2017,
+        bills: [
+          { name: "Kicks", amount: 472 },
+          { name: "Progressive", amount: 300 },
+          { name: "Rogue", amount: 700 },
+          { name: "Fridge", amount: 60 },
+          { name: "Peñasco", amount: 45 },
+          { name: "Vegas", amount: 51 },
+          { name: "Amazon", amount: 50 },
+        ]
+      },
+      {
+        date: "08/30/2025",
+        amount: 650,
+        bills: [
+          { name: "Hawaiian Air", amount: 65 },
+          { name: "City of Phoenix", amount: 60 },
+          { name: "Chase", amount: 125 },
+          { name: "Frontier", amount: 65 },
+        ]
+      },
+      {
+        date: "09/06/2025",
+        amount: 2017,
+        bills: [
+          { name: "House payment", amount: 950 },
+          { name: "QS 3064", amount: 100 },
+          { name: "Century Link", amount: 70 },
+          { name: "T-Mobile", amount: 368 },
+          { name: "HOA", amount: 160 },
+        ]
+      },
+      {
+        date: "09/13/2025",
+        amount: 650,
+        bills: [
+          { name: "Walmart", amount: 75 },
+          { name: "Quicksilver5989", amount: 100 },
+          { name: "Capital One", amount: 189 },
+        ]
+      }
     ];
 
-    // === Generate alternating pay schedule ===
-    function generatePaySchedule(startDate, numPeriods) {
-      const weeks = [];
-      let date = new Date(startDate + "T00:00:00-07:00"); // Arizona time
-      let toggle = true; // alternate between 2017 and 650
+    // === Local storage key ===
+    const STORAGE_KEY = "payments_tracker";
 
-      for (let i = 0; i < numPeriods; i++) {
-        weeks.push({
-          date: date.toISOString().slice(0, 10),
-          amount: toggle ? 2017 : 650,
-          bills: []
-        });
-
-        date.setDate(date.getDate() + 7); // move 7 days forward
-        toggle = !toggle;
-      }
-      return weeks;
+    // Load paid state from storage
+    function loadPaidState() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     }
 
-    // === Assign bills to the correct paycheck ===
-    function assignBillsToWeeks(weeks, bills) {
-      bills.forEach(bill => {
-        const due = new Date(bill.due + "T00:00:00-07:00");
-        let targetWeek = weeks.find(w => new Date(w.date) >= due);
-        if (!targetWeek) {
-          targetWeek = weeks[weeks.length - 1];
-        }
-        targetWeek.bills.push(bill);
-      });
+    // Save paid state
+    function savePaidState(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    // === Render UI ===
-    function renderWeeks(weeks) {
+    // Render weeks
+    function renderWeeks() {
       const container = document.getElementById("weeks");
       container.innerHTML = "";
-      weeks.forEach(week => {
-        const totalBills = week.bills.reduce((sum, b) => sum + b.amount, 0);
-        const remaining = week.amount - totalBills;
+      const paidState = loadPaidState();
+
+      WEEKS.forEach((week, weekIndex) => {
+        let totalBills = 0;
+        let paidTotal = 0;
 
         const div = document.createElement("div");
         div.className = "week";
+
+        let billsHtml = "";
+        week.bills.forEach((bill, billIndex) => {
+          const id = `${weekIndex}-${billIndex}`;
+          const paid = paidState[id] || false;
+          totalBills += bill.amount;
+          if (paid) paidTotal += bill.amount;
+
+          billsHtml += `
+            <div class="bill ${paid ? "paid" : ""}">
+              <span>${bill.name} — $${bill.amount}</span>
+              <input type="checkbox" class="toggle" data-id="${id}" ${paid ? "checked" : ""}>
+            </div>
+          `;
+        });
+
+        const remaining = week.amount - (totalBills - paidTotal);
+
         div.innerHTML = `
           <h2>Pay Date: ${week.date} — 💵 $${week.amount}</h2>
-          <div>
-            ${week.bills.map(b => `
-              <div class="bill">
-                <span>${b.name}</span>
-                <span>$${b.amount}</span>
-              </div>
-            `).join("")}
-          </div>
+          ${billsHtml}
           <div class="remaining">Remaining: $${remaining}</div>
         `;
         container.appendChild(div);
       });
+
+      // Attach toggle handlers
+      document.querySelectorAll(".toggle").forEach(input => {
+        input.addEventListener("change", e => {
+          const id = e.target.dataset.id;
+          const state = loadPaidState();
+          state[id] = e.target.checked;
+          savePaidState(state);
+          renderWeeks(); // re-render to update totals/strike-through
+        });
+      });
     }
 
-    // === Run ===
-    const WEEKS = generatePaySchedule("2025-08-23", 8); // 2 months (8 weeks)
-    assignBillsToWeeks(WEEKS, BASE_BILLS);
-    renderWeeks(WEEKS);
+    renderWeeks();
   </script>
 </body>
 </html>
