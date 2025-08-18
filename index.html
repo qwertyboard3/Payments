@@ -2,149 +2,171 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>4-Week Payment Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4-Week Paycheck Tracker</title>
 <style>
-body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:0; background:#0f1115; color:#e6e8f0; }
-header { position: sticky; top:0; background:#171923; padding:1rem; border-bottom:1px solid #2a2f3a; text-align:center; font-weight:bold; }
-.week-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:#171923; border-bottom:1px solid #2a2f3a; }
-.week-card { margin:1rem; padding:1rem; background:#171923; border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
-.progress { height:8px; border-radius:8px; background:#242938; margin:0.5rem 0 1rem; overflow:hidden; border:1px solid #32384e; }
-.progress-bar { height:100%; background:linear-gradient(90deg,#7c5cff,#22d06e); width:0%; transition:width 0.3s; }
-.bill { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #2a2f3a; }
-.bill:last-child { border-bottom:none; }
-.ios-switch { position:relative; display:inline-block; width:52px; height:32px; }
-.ios-switch input { display:none; }
-.slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#252a36; border-radius:32px; transition:.4s; border:1px solid #394055; }
-.slider:before { position:absolute; content:""; height:24px; width:24px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s; box-shadow:0 1px 2px rgba(0,0,0,.45); }
-input:checked + .slider { background:linear-gradient(90deg,#1db954,#22d06e); border-color:#179d4d; }
-input:checked + .slider:before { transform:translateX(20px); background:white; }
-#debug { background:#222; color:#0f0; padding:1rem; font-family:monospace; overflow:auto; max-height:200px; }
-button { background:#7c5cff; border:none; padding:0.5rem 1rem; border-radius:8px; color:#fff; cursor:pointer; }
-button:hover { background:#5a42c8; }
+  :root {
+    --bg:#0f1115; --panel:#171923; --text:#e6e8f0;
+    --text-dim:#a7b0c0; --good:#1db954; --bad:#ff5876;
+  }
+  body{margin:0; font-family:system-ui; background:var(--bg); color:var(--text);}
+  .wrap{max-width:500px; margin:20px auto; padding:0 16px;}
+  h1,h2{margin:4px 0;}
+  .card{background:var(--panel); padding:14px; margin-bottom:16px; border-radius:12px;}
+  .row{display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #2a2f3a;}
+  .row:last-child{border-bottom:none;}
+  .toggle{width:40px;height:20px;position:relative;appearance:none;background:#252a36;border-radius:20px;outline:none;cursor:pointer;}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#8a93a8;border-radius:50%;transition:.2s;}
+  .toggle:checked{background:#1db954;}
+  .toggle:checked::after{left:22px;background:#fff;}
+  .progress{height:8px;background:#242938;border-radius:8px;margin-top:10px;overflow:hidden;}
+  .progress > i{display:block;height:100%;background:#1db954;width:0%;}
+  .hidden{display:none;}
+  .week-nav{display:flex;justify-content:space-between;margin-bottom:10px;}
+  button{background:#7c5cff;color:#fff;border:none;padding:6px 12px;border-radius:8px;cursor:pointer;}
 </style>
 </head>
 <body>
-<header id="totals">Loading...</header>
+<div class="wrap">
+<h1>Paycheck Tracker</h1>
+
 <div class="week-nav">
-  <button id="prevWeek">◀︎</button>
-  <div id="weekLabel">Week</div>
-  <button id="nextWeek">▶︎</button>
+  <button id="prevWeek">← Prev</button>
+  <span id="weekLabel">Week</span>
+  <button id="nextWeek">Next →</button>
 </div>
-<div id="weekContainer"></div>
-<div id="debug"></div>
+
+<section id="weeks"></section>
+</div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
 
-// ===== Replace with your Firebase config =====
+// ===== Firebase config =====
 const firebaseConfig = {
   apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
   authDomain: "budget-tracker-1eea7.firebaseapp.com",
   projectId: "budget-tracker-1eea7",
-  storageBucket: "budget-tracker-1eea7.appspot.com", // <- must be appspot.com
+  storageBucket: "budget-tracker-1eea7.appspot.com",
   messagingSenderId: "579597071031",
   appId: "1:579597071031:web:f30c2d42cc57268707d332"
 };
-// ============================================
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const TOGGLE_DOC = doc(db, "toggles", "paychecks");
 
-const debugEl = document.getElementById("debug");
-function logDebug(msg){ debugEl.innerHTML += msg + "<br>"; debugEl.scrollTop = debugEl.scrollHeight; }
-
-const startDate = new Date("2025-08-22");
-const weekLength = 7*24*60*60*1000;
-let currentWeek;
-
-const defaultBills = [
-  {id:"phoenix", name:"City of Phoenix", amount:60},
-  {id:"quicksilver", name:"Quicksilver 3064", amount:100},
-  {id:"progressive", name:"Progressive", amount:300},
-  {id:"fridge", name:"Fridge", amount:60},
-  {id:"amazon", name:"Amazon Prime", amount:50},
+// ===== Data =====
+const PAYCHECKS = [
+  { date:'2025-09-19', amount:2017, bills:[
+      {id:'kicks', name:'Kicks', amt:472},
+      {id:'progressive', name:'Progressive', amt:300},
+      {id:'rogue', name:'Rogue', amt:700},
+      {id:'fridge', name:'Fridge', amt:60},
+      {id:'penasco', name:'Peñasco', amt:45},
+      {id:'vegas', name:'Vegas', amt:51},
+      {id:'amazon', name:'Amazon', amt:50}
+    ]
+  },
+  { date:'2025-09-26', amount:650, bills:[
+      {id:'hawaiian', name:'Hawaiian Airlines', amt:65},
+      {id:'city', name:'City of Phoenix', amt:60},
+      {id:'chase', name:'Chase', amt:125},
+      {id:'frontier', name:'Frontier', amt:65}
+    ]
+  },
+  { date:'2025-10-03', amount:2017, bills:[
+      {id:'house', name:'House Payment', amt:950},
+      {id:'qs3064', name:'QS 3064', amt:100},
+      {id:'centurylink', name:'Century Link', amt:70},
+      {id:'tmobile', name:'T-Mobile', amt:368},
+      {id:'hoa', name:'HOA', amt:160}
+    ]
+  },
+  { date:'2025-10-10', amount:650, bills:[
+      {id:'walmart', name:'Walmart', amt:75},
+      {id:'qs5989', name:'QS 5989', amt:100},
+      {id:'capitalone', name:'Capital One', amt:189}
+    ]
+  }
 ];
 
-async function renderWeek(weekNum){
-  logDebug(`Rendering week ${weekNum}...`);
-  const weekDoc = doc(db, "weeks", "week"+weekNum);
-  let snap;
-  try {
-    snap = await getDoc(weekDoc);
-    logDebug(`Firestore read: ${snap.exists() ? "exists" : "not exists"}`);
-  } catch(e){
-    logDebug("Error reading Firestore: " + e.message);
-    return;
-  }
+// ===== Helpers =====
+function money(n){ return '$'+Number(n).toLocaleString(undefined,{maximumFractionDigits:0}); }
 
-  let state = snap.exists() ? snap.data() : {};
-  if(!snap.exists()){
-    const initialState = {};
-    defaultBills.forEach(b=>initialState[b.id]=false);
-    try{
-      await setDoc(weekDoc, initialState);
-      logDebug("Created new Firestore week doc");
-    }catch(e){ logDebug("Error creating doc: "+e.message);}
-    state = initialState;
-  }
+let state = {};
+let currentWeek = 0;
+const weeksEl = document.getElementById('weeks');
+const weekLabel = document.getElementById('weekLabel');
 
-  const weekStart = new Date(startDate.getTime() + (weekNum-1)*weekLength);
-  const weekEnd = new Date(weekStart.getTime() + weekLength -1);
-  document.getElementById("weekLabel").textContent = `Week ${weekNum} (${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()})`;
-
-  let paidCount = 0;
-  let html = `<div class="week-card"><div class="progress"><div class="progress-bar" id="progressBar"></div></div>`;
-  defaultBills.forEach(b=>{
-    const checked = state[b.id] || false;
-    if(checked) paidCount++;
-    html += `<div class="bill">
-      <span>${b.name} - $${b.amount}</span>
-      <label class="ios-switch">
-        <input type="checkbox" data-id="${b.id}" ${checked?"checked":""}>
-        <span class="slider"></span>
-      </label>
-    </div>`;
-  });
-  html += `</div>`;
-  document.getElementById("weekContainer").innerHTML = html;
-
-  document.getElementById("progressBar").style.width = defaultBills.length ? (paidCount/defaultBills.length*100)+"%" : "0%";
-  document.getElementById("totals").textContent = `Paid: $${defaultBills.filter(b=>state[b.id]).reduce((a,b)=>a+b.amount,0)} / $${defaultBills.reduce((a,b)=>a+b.amount,0)}`;
-
-  document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-    cb.onchange = async e=>{
-      state[e.target.dataset.id] = e.target.checked;
-      try{
-        await setDoc(weekDoc, state, {merge:true});
-        logDebug(`Saved ${e.target.dataset.id}=${e.target.checked}`);
-      }catch(err){ logDebug("Error saving: "+err.message);}
-      renderWeek(weekNum);
-    };
-  });
+// ===== Functions =====
+async function loadState(){
+  try{
+    const snap = await getDoc(TOGGLE_DOC);
+    state = snap.exists() ? snap.data() : {};
+  }catch(e){console.warn("Error reading Firestore:",e);}
 }
 
-// Navigation
-document.getElementById("prevWeek").onclick = ()=>{ if(currentWeek>1){ currentWeek--; renderWeek(currentWeek); } };
-document.getElementById("nextWeek").onclick = ()=>{ currentWeek++; renderWeek(currentWeek); };
+function renderWeek(index){
+  weeksEl.innerHTML='';
+  const week = PAYCHECKS[index];
+  weekLabel.textContent = `Week ${index+1} - ${week.date}`;
+  let totalPaid = 0;
+  const card = document.createElement('div');
+  card.className='card';
+  week.bills.forEach(b=>{
+    const checked = state[b.id]?'checked':'';
+    if(state[b.id]) totalPaid+=b.amt;
+    const row = document.createElement('div');
+    row.className='row';
+    row.innerHTML=`<span>${b.name} (${money(b.amt)})</span>
+      <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>`;
+    card.appendChild(row);
+  });
+  const remaining = week.amount - totalPaid;
+  const progress = Math.round((totalPaid/week.amount)*100);
+  const progressBar = document.createElement('div');
+  progressBar.className='progress';
+  progressBar.innerHTML=`<i style="width:${progress}%;"></i>`;
+  const totals = document.createElement('div');
+  totals.style.marginTop='8px';
+  totals.innerHTML=`Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}`;
+  card.appendChild(totals);
+  card.appendChild(progressBar);
+  weeksEl.appendChild(card);
+}
 
-// Firebase Auth
-signInAnonymously(auth)
-  .then(u=> logDebug("Signed in: " + u.user.uid))
-  .catch(err=> logDebug("Auth error: "+err.message));
+// ===== Event Handlers =====
+document.addEventListener('change', async e=>{
+  if(e.target.matches('.toggle')){
+    const id=e.target.dataset.id;
+    state[id]=e.target.checked;
+    try{await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});}
+    catch(err){console.warn("Error saving toggle:",err);}
+    renderWeek(currentWeek);
+  }
+});
 
+document.getElementById('prevWeek').addEventListener('click',()=>{
+  if(currentWeek>0){currentWeek--; renderWeek(currentWeek);}
+});
+document.getElementById('nextWeek').addEventListener('click',()=>{
+  if(currentWeek<PAYCHECKS.length-1){currentWeek++; renderWeek(currentWeek);}
+});
+
+// ===== Init =====
+signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, user=>{
   if(user){
-    logDebug("onAuthStateChanged: signed in");
-    const today = new Date();
-    currentWeek = Math.floor((today - startDate)/weekLength)+1;
-    if(currentWeek<1) currentWeek=1;
-    renderWeek(currentWeek);
-  } else {
-    logDebug("onAuthStateChanged: not signed in");
-  }
+    loadState().then(()=>{
+      // Auto-select current week based on date
+      const today = new Date();
+      currentWeek = PAYCHECKS.findIndex(p=>new Date(p.date) <= today) || 0;
+      renderWeek(currentWeek);
+    });
+  } else console.warn("Not signed in");
 });
 </script>
 </body>
