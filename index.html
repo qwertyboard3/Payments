@@ -1,118 +1,118 @@
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
-import { 
-  initializeFirestore, 
-  memoryLocalCache, 
-  doc, getDoc, setDoc 
-} from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } 
-  from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
+// ================== Firebase Setup ==================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
-  authDomain: "budget-tracker-1eea7.firebaseapp.com",
-  projectId: "budget-tracker-1eea7",
-  storageBucket: "budget-tracker-1eea7.firebasestorage.app",
-  messagingSenderId: "579597071031",
-  appId: "1:579597071031:web:f30c2d42cc57268707d332"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
 };
 
+// Init
 const app = initializeApp(firebaseConfig);
-
-// ✅ Force memory-only cache (no IndexedDB, avoids corruption)
-const db = initializeFirestore(app, {
-  localCache: memoryLocalCache()
-});
-
 const auth = getAuth(app);
-const TOGGLE_DOC = doc(db,"toggles","weeklyState");
-let state = {};
+const db = getFirestore(app);
 
-// === Bills & Pay Dates ===
-const MASTER_BILLS = [
-  {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
-  {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
-  {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
-  {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
-  {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
-  {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
-  {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
-  {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
-  {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-  {id:'amazon',name:'Amazon',amt:50,due:'09/08/2025'},
-  {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
-  {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
-  {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'},
-  {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
-  {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
-  {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
-  {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
-  {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
-  {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'}
-];
-
-const PAY_DATES = [
-  { date: '2025-08-22', amount: 2017 },
-  { date: '2025-08-29', amount: 650 },
-  { date: '2025-09-05', amount: 2017 },
-  { date: '2025-09-12', amount: 650 },
-  { date: '2025-09-19', amount: 2017 },
-  { date: '2025-09-26', amount: 650 },
-  { date: '2025-10-03', amount: 2017 },
-];
-
-// === Functions ===
-function generateWeeks() {
-  const weeks = [];
-  for (let i = 0; i < PAY_DATES.length; i++) {
-    const payDate = PAY_DATES[i].date;
-    const income = PAY_DATES[i].amount;
-
-    let nextPayDate = new Date(new Date(payDate + 'T12:00:00'));
-    nextPayDate.setDate(nextPayDate.getDate() + 7);
-
-    if (i < PAY_DATES.length - 1) {
-        nextPayDate = new Date(PAY_DATES[i + 1].date + 'T12:00:00');
-    }
-
-    const billsForWeek = MASTER_BILLS.filter(bill => {
-      const dueDate = new Date(bill.due + 'T12:00:00');
-      const payDateObj = new Date(payDate + 'T12:00:00');
-      return dueDate >= payDateObj && dueDate < nextPayDate;
-    });
-
-    weeks.push({
-      date: payDate,
-      amount: income,
-      bills: billsForWeek
-    });
+// ================== Data ==================
+const WEEKS = [
+  {
+    date: "Aug 1–7",
+    amount: 1200,
+    bills: [
+      { id: "rent", name: "Rent", amt: 600, due: "Aug 3" },
+      { id: "wifi", name: "WiFi", amt: 60, due: "Aug 5" }
+    ]
+  },
+  {
+    date: "Aug 8–14",
+    amount: 1100,
+    bills: [
+      { id: "car", name: "Car Payment", amt: 300, due: "Aug 10" }
+    ]
   }
-  return weeks;
+];
+
+// Track current week & toggle states
+let currentWeekIndex = 0;
+let state = {};
+let TOGGLE_DOC = null;
+
+// ================== Render Functions ==================
+function renderWeek() {
+  const week = WEEKS[currentWeekIndex];
+  const container = document.getElementById("weekView");
+
+  if (!week) {
+    container.innerHTML = "<p>No week data available.</p>";
+    return;
+  }
+
+  container.innerHTML = `
+    <h2>Week of ${week.date} – Income: $${week.amount}</h2>
+    <ul>
+      ${week.bills.map(b => `
+        <li>
+          <label>
+            <input type="checkbox" data-id="${b.id}" ${state[b.id] ? "checked" : ""}>
+            ${b.name} – $${b.amt} (due ${b.due})
+          </label>
+        </li>
+      `).join("")}
+    </ul>
+  `;
+
+  // Checkbox listeners
+  container.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", async e => {
+      state[e.target.dataset.id] = e.target.checked;
+      try {
+        await setDoc(TOGGLE_DOC, state);
+      } catch (err) {
+        console.error("Error saving toggle:", err);
+      }
+    });
+  });
 }
 
-const WEEKS = generateWeeks();   // ✅ put this back
-let currentWeekIndex = 0;
+function renderAllSummary() {
+  const container = document.getElementById("allSummary");
+  container.innerHTML = WEEKS.map(w =>
+    `<p>${w.date}: Income $${w.amount}, Bills $${w.bills.reduce((t,b)=>t+b.amt,0)}</p>`
+  ).join("");
+}
 
-// ... keep your renderWeek(), renderAllSummary(), renderMonthSummary(),
-// event listeners, swipe logic, pull-to-refresh here unchanged ...
+function renderMonthSummary() {
+  const container = document.getElementById("monthSummary");
+  const totalIncome = WEEKS.reduce((t,w)=>t+w.amount,0);
+  const totalBills  = WEEKS.reduce((t,w)=>t+w.bills.reduce((s,b)=>s+b.amt,0),0);
+  container.innerHTML = `<p>Total Income: $${totalIncome} | Total Bills: $${totalBills}</p>`;
+}
 
-// === Auth & Firestore sync ===
-signInAnonymously(auth).catch(console.error);
-
-onAuthStateChanged(auth, async user=>{
-  if(user){
-    try{
-      const snap = await getDoc(TOGGLE_DOC);
-      state = snap.exists()?snap.data():{};
-    }catch(e){ console.warn("Error reading Firestore:",e); }
-    const today = new Date();
-    WEEKS.forEach((w,i)=>{
-      const start = new Date(w.date);
-      const end = new Date(start);
-      end.setDate(start.getDate()+6);
-      if(today>=start && today<=end) currentWeekIndex=i;
-    });
-    renderWeek();
+// ================== Auth & Firestore ==================
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    await signInAnonymously(auth);
+    return;
   }
+
+  console.log("Signed in:", user.uid);
+  TOGGLE_DOC = doc(db, "users", user.uid, "data", "toggles");
+
+  // Load saved state
+  const snap = await getDoc(TOGGLE_DOC);
+  if (snap.exists()) {
+    state = snap.data();
+  }
+
+  // Render everything
+  renderWeek();
+  renderAllSummary();
+  renderMonthSummary();
 });
 </script>
