@@ -1,183 +1,308 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>💰 Payments Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #121212;
-      color: #eee;
-    }
-    h1 { color: #7c5cff; }
-    .week {
-      background: #1e1e1e;
-      border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-    }
-    .week h2 { margin-top: 0; }
-    .bill {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 0;
-      border-bottom: 1px solid #333;
-    }
-    .bill:last-child { border-bottom: none; }
-    .toggle { margin-left: 10px; }
-    .remaining {
-      font-weight: bold;
-      margin-top: 10px;
-      color: #4caf50;
-    }
-    .paid {
-      text-decoration: line-through;
-      opacity: 0.6;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pagos</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/pagos-icon-192.png">
+<meta name="theme-color" content="#7c5cff">
+<style>
+  body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
+  h1{text-align:center;margin:16px 0;}
+  .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;min-height:300px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.3s ease-in-out;}
+  .card h2{text-align:center;margin-bottom:10px;font-size:22px;}
+  .card .income{font-size:18px;margin-top:5px;display:block;}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
+  .row:last-child{border-bottom:none;}
+  .row .bill-name{font-weight:bold;}
+  .toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
+  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
+  .toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
+  .toggle:checked::after{left:23px;background:white;}
+  .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
+  .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
+  .month-summary{margin-top:10px;padding:12px;border-radius:10px;font-size:16px;transition: background-color 0.5s ease;}
+  .month-summary.all-paid{background-color:#179d4d;color:white;}
+  .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
+  .bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
+  .bill-item:last-child{border-bottom:none;}
+  .bill-item .paid-amount{color:#1db954;}
+  .navigation-buttons{display:none;}
+</style>
 </head>
 <body>
-  <h1>💰 Payments Tracker</h1>
-  <div id="weeks"></div>
+<h1>Pagos V1.0</h1>
+<section id="weekContainer"></section>
+<div class="navigation-buttons">
+  <button id="prevWeek">Previous</button>
+  <button id="nextWeek">Next</button>
+</div>
+<div class="summary" id="allSummary"></div>
+<div class="month-summary" id="monthSummary"></div>
 
-  <!-- Firebase App SDK -->
-  <script type="module">
-    // Import Firebase SDKs
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
 
-    // === Firebase Config ===
-    const firebaseConfig = {
-      apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
-      authDomain: "budget-tracker-1eea7.firebaseapp.com",
-      projectId: "budget-tracker-1eea7",
-      storageBucket: "budget-tracker-1eea7.firebasestorage.app",
-      messagingSenderId: "579597071031",
-      appId: "1:579597071031:web:f30c2d42cc57268707d332"
+const firebaseConfig = {
+  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+  authDomain: "budget-tracker-1eea7.firebaseapp.com",
+  projectId: "budget-tracker-1eea7",
+  storageBucket: "budget-tracker-1eea7.appspot.com",
+  messagingSenderId: "579597071031",
+  appId: "1:579597071031:web:f30c2d42cc57268707d332"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const TOGGLE_DOC = doc(db,"toggles","weeklyState");
+let state = {};
+
+// === Base template bills ===
+const BASE_WEEKS = [
+  { amount: 2017, bills: [
+    {id:'kicks',name:'Kicks',amt:472,due:'2025-10-01'},
+    {id:'progressive',name:'Progressive',amt:300,due:'2025-09-15'},
+    {id:'rogue',name:'Rogue',amt:700,due:'2025-09-03'},
+    {id:'fridge',name:'Fridge',amt:60,due:'2025-09-01'},
+    {id:'penasco',name:'Peñasco',amt:45,due:'2025-09-01'},
+    {id:'vegas',name:'Vegas',amt:51,due:'2025-09-01'},
+    {id:'amazon',name:'Amazon',amt:50,due:'2025-09-08'}
+  ]},
+  { amount: 2017, bills: [
+    {id:'hoa',name:'HOA',amt:160,due:'2025-09-01'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'2025-09-04'},
+    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'2025-09-11'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-13'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'2025-09-10'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-15'},
+    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'2025-09-15'},
+    {id:'frontier',name:'Frontier',amt:65,due:'2025-09-15'},
+    {id:'chase',name:'Chase',amt:125,due:'2025-09-15'},
+    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'2025-09-15'},
+    {id:'walmart',name:'Walmart',amt:75,due:'2025-09-17'},
+    {id:'house',name:'House payment',amt:950,due:'2025-10-01'}
+  ]}
+];
+
+// === Generate weeks with shifted due dates ===
+function generateWeeks(startDate, numWeeks){
+  const weeks=[];
+  let parts = startDate.split('-');
+  let date = new Date(parts[0], parts[1]-1, parts[2]);
+
+  for(let i=0;i<numWeeks;i++){
+    const pattern = BASE_WEEKS[i % BASE_WEEKS.length];
+    const cycleOffset = Math.floor(i / BASE_WEEKS.length);
+
+    const w = {
+      amount: pattern.amount,
+      bills: pattern.bills.map(b=>{
+        const baseDue = new Date(b.due);
+        const newDue = new Date(baseDue);
+        newDue.setMonth(baseDue.getMonth() + cycleOffset); // shift forward by cycles
+        return {...b, due:newDue.toISOString().slice(0,10)};
+      })
     };
 
-    // Init Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    w.date = date.toISOString().slice(0,10);
+    weeks.push(w);
+    date.setDate(date.getDate()+7);
+  }
+  return weeks;
+}
 
-    // === Your bills/weeks (fixed) ===
-    const WEEKS = [
-      {
-        date: "08/23/2025",
-        amount: 2017,
-        bills: [
-          { name: "Kicks", amount: 472 },
-          { name: "Progressive", amount: 300 },
-          { name: "Rogue", amount: 700 },
-          { name: "Fridge", amount: 60 },
-          { name: "Peñasco", amount: 45 },
-          { name: "Vegas", amount: 51 },
-          { name: "Amazon", amount: 50 },
-        ]
-      },
-      {
-        date: "08/30/2025",
-        amount: 650,
-        bills: [
-          { name: "Hawaiian Air", amount: 65 },
-          { name: "City of Phoenix", amount: 60 },
-          { name: "Chase", amount: 125 },
-          { name: "Frontier", amount: 65 },
-        ]
-      },
-      {
-        date: "09/06/2025",
-        amount: 2017,
-        bills: [
-          { name: "House payment", amount: 950 },
-          { name: "QS 3064", amount: 100 },
-          { name: "Century Link", amount: 70 },
-          { name: "T-Mobile", amount: 368 },
-          { name: "HOA", amount: 160 },
-        ]
-      },
-      {
-        date: "09/13/2025",
-        amount: 650,
-        bills: [
-          { name: "Walmart", amount: 75 },
-          { name: "Quicksilver5989", amount: 100 },
-          { name: "Capital One", amount: 189 },
-        ]
+const WEEKS = generateWeeks('2025-08-22', 12);
+let currentWeekIndex = 0;
+
+function money(n){return '$'+Number(n).toLocaleString();}
+
+// === Render one week ===
+function renderWeek(){
+  const container=document.getElementById('weekContainer');
+  container.innerHTML='';
+  const pc=WEEKS[currentWeekIndex];
+  let totalPaid=0;
+
+  pc.bills.forEach(b=>{
+    const toggleId=`${b.id}_${b.due}`;
+    if(state[toggleId]) totalPaid+=b.amt;
+  });
+
+  const remaining=pc.amount-totalPaid;
+  const pct=pc.amount?Math.round((totalPaid/pc.amount)*100):0;
+
+  let html=`<div class="card">
+    <div class="card-header">
+      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
+      <span class="income">Income: ${money(pc.amount)}</span></h2>
+    </div>
+    <div class="bill-list">`;
+
+  pc.bills.forEach(b=>{
+    const toggleId=`${b.id}_${b.due}`;
+    const checked=state[toggleId]?'checked':'';
+    const dueDate=new Date(b.due);
+    const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+    html+=`<div class="row">
+      <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
+      <input type="checkbox" class="toggle" data-bill-id="${b.id}" data-due="${b.due}" ${checked}>
+    </div>`;
+  });
+
+  html+=`</div>
+    <div class="card-footer">
+      <p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
+      <div class="progress"><i style="width:${pct}%"></i></div>
+    </div>
+  </div>`;
+
+  container.innerHTML=html;
+  renderAllSummary();
+  renderMonthSummary();
+}
+
+// === All-time summary ===
+function renderAllSummary(){
+  const container=document.getElementById('allSummary');
+  let planned=0,paid=0;
+  WEEKS.forEach(w=>{
+    w.bills.forEach(b=>{
+      planned+=b.amt;
+      const toggleId=`${b.id}_${b.due}`;
+      if(state[toggleId]) paid+=b.amt;
+    });
+  });
+  const remaining=planned-paid;
+  container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
+}
+
+// === Month summary ===
+function renderMonthSummary(){
+  const container=document.getElementById('monthSummary');
+  const month=new Date(WEEKS[currentWeekIndex].date).getMonth();
+  const year=new Date(WEEKS[currentWeekIndex].date).getFullYear();
+
+  const allBills=WEEKS.flatMap(w=>w.bills);
+
+  const groupedBills={};
+  allBills.forEach(b=>{
+    const dueMonth=new Date(b.due).getMonth();
+    const dueYear=new Date(b.due).getFullYear();
+    if(dueMonth===month && dueYear===year){
+      const key=`${b.id}_${b.due}`;
+      if(!groupedBills[key]){
+        groupedBills[key]={...b,isPaid:false};
       }
-    ];
-
-    const STATE_DOC = doc(db, "payments", "trackerState");
-
-    // Load paid state from Firestore
-    async function loadPaidState() {
-      const snap = await getDoc(STATE_DOC);
-      if (snap.exists()) return snap.data();
-      return {};
+      const toggleId=`${b.id}_${b.due}`;
+      if(state[toggleId]) groupedBills[key].isPaid=true;
     }
+  });
 
-    // Save paid state to Firestore
-    async function savePaidState(state) {
-      await setDoc(STATE_DOC, state);
-    }
+  const billsForDisplay=Object.values(groupedBills);
+  let totalPaidForMonth=0;
+  let totalPlannedForMonth=0;
 
-    // Render weeks
-    async function renderWeeks() {
-      const container = document.getElementById("weeks");
-      container.innerHTML = "";
-      const paidState = await loadPaidState();
+  let html=`<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
 
-      WEEKS.forEach((week, weekIndex) => {
-        let totalBills = 0;
-        let paidTotal = 0;
+  billsForDisplay.sort((a,b)=>new Date(a.due)-new Date(b.due));
 
-        const div = document.createElement("div");
-        div.className = "week";
+  if(billsForDisplay.length>0){
+    billsForDisplay.forEach(b=>{
+      totalPlannedForMonth+=b.amt;
+      if(b.isPaid) totalPaidForMonth+=b.amt;
+      const dueDate=new Date(b.due);
+      const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+      const paidClass=b.isPaid?'paid-amount':'';
+      html+=`<div class="bill-item">
+        <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
+        <span class="${paidClass}">${money(b.amt)}</span>
+      </div>`;
+    });
+  }else{
+    html+=`<p style="text-align:center;">No bills due this month.</p>`;
+  }
 
-        let billsHtml = "";
-        week.bills.forEach((bill, billIndex) => {
-          const id = `${weekIndex}-${billIndex}`;
-          const paid = paidState[id] || false;
-          totalBills += bill.amount;
-          if (paid) paidTotal += bill.amount;
+  container.innerHTML=html;
+  container.classList.toggle('all-paid', totalPaidForMonth===totalPlannedForMonth && totalPlannedForMonth>0);
+}
 
-          billsHtml += `
-            <div class="bill ${paid ? "paid" : ""}">
-              <span>${bill.name} — $${bill.amount}</span>
-              <input type="checkbox" class="toggle" data-id="${id}" ${paid ? "checked" : ""}>
-            </div>
-          `;
-        });
+// === Toggle handler ===
+document.addEventListener('change',async e=>{
+  if(e.target.matches('.toggle')){
+    const billId=e.target.dataset.billId;
+    const dueDate=e.target.dataset.due;
+    const toggleId=`${billId}_${dueDate}`;
+    state[toggleId]=e.target.checked;
+    renderWeek(); // update UI immediately
+    try{
+      await setDoc(TOGGLE_DOC,{[toggleId]:state[toggleId]},{merge:true});
+    }catch(err){console.warn("Error saving:",err);}
+  }
+});
 
-        const remaining = week.amount - (totalBills - paidTotal);
+// === Swipe gestures ===
+let touchstartX=0,touchendX=0;
+const SWIPE_THRESHOLD=100;
+const weekContainer=document.getElementById('weekContainer');
 
-        div.innerHTML = `
-          <h2>Pay Date: ${week.date} — 💵 $${week.amount}</h2>
-          ${billsHtml}
-          <div class="remaining">Remaining: $${remaining}</div>
-        `;
-        container.appendChild(div);
-      });
+function handleGesture(){
+  if(touchendX<touchstartX-SWIPE_THRESHOLD){
+    if(currentWeekIndex<WEEKS.length-1){currentWeekIndex++;renderWeek();}
+  }
+  if(touchendX>touchstartX+SWIPE_THRESHOLD){
+    if(currentWeekIndex>0){currentWeekIndex--;renderWeek();}
+  }
+}
 
-      // Attach toggle handlers
-      document.querySelectorAll(".toggle").forEach(input => {
-        input.addEventListener("change", async e => {
-          const id = e.target.dataset.id;
-          const paid = e.target.checked;
-          const current = await loadPaidState();
-          current[id] = paid;
-          await savePaidState(current);
-          renderWeeks(); // refresh UI
-        });
-      });
-    }
+weekContainer.addEventListener('touchstart',e=>{touchstartX=e.changedTouches[0].screenX;});
+weekContainer.addEventListener('touchend',e=>{touchendX=e.changedTouches[0].screenX;handleGesture();});
 
-    renderWeeks();
-  </script>
+// === Pull to refresh ===
+let startY=0,endY=0;
+const PULL_THRESHOLD=80;
+
+document.addEventListener('touchstart',e=>{startY=e.touches[0].pageY;});
+document.addEventListener('touchmove',e=>{
+  endY=e.touches[0].pageY;
+  if(window.scrollY===0 && endY>startY){
+    document.body.style.transform=`translateY(${endY-startY}px)`;
+  }
+});
+document.addEventListener('touchend',e=>{
+  if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD){
+    window.location.reload();
+  }
+  document.body.style.transform=`translateY(0)`;
+});
+
+// === Firebase auth & init ===
+signInAnonymously(auth).catch(console.error);
+onAuthStateChanged(auth,async user=>{
+  if(user){
+    try{
+      const snap=await getDoc(TOGGLE_DOC);
+      state=snap.exists()?snap.data():{};
+    }catch(e){console.warn("Error reading Firestore:",e);}
+    const today=new Date();
+    WEEKS.forEach((w,i)=>{
+      const start=new Date(w.date);
+      const end=new Date(start);
+      end.setDate(start.getDate()+6);
+      if(today>=start && today<=end) currentWeekIndex=i;
+    });
+    renderWeek();
+  }
+});
+</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
+}
+</script>
 </body>
 </html>
