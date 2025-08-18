@@ -126,7 +126,7 @@ function renderWeek(){
 
   let html = `<div class="card">
     <div class="card-header">
-      <h2>${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})} - ${new Date(new Date(pc.date).setDate(new Date(pc.date).getDate()+6)).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
+      <h2>${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
@@ -212,16 +212,17 @@ document.addEventListener('change', async e=>{
 
 let touchstartX = 0;
 let touchendX = 0;
+const SWIPE_THRESHOLD = 100;
 const weekContainer = document.getElementById('weekContainer');
 
 function handleGesture() {
-  if (touchendX < touchstartX - 50) {
+  if (touchendX < touchstartX - SWIPE_THRESHOLD) {
     if (currentWeekIndex < WEEKS.length - 1) {
       currentWeekIndex++;
       renderWeek();
     }
   }
-  if (touchendX > touchstartX + 50) {
+  if (touchendX > touchstartX + SWIPE_THRESHOLD) {
     if (currentWeekIndex > 0) {
       currentWeekIndex--;
       renderWeek();
