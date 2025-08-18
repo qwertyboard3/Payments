@@ -4,117 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pagos</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" href="icons/pagos-icon-192.png">
-<meta name="theme-color" content="#7c5cff">
 <style>
-  body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
-  h1{text-align:center;margin:16px 0;}
-  .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;min-height:300px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.3s ease-in-out;}
-  .card h2{text-align:center;margin-bottom:10px;font-size:22px;}
-  .card .income{font-size:18px;margin-top:5px;display:block;}
-  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
-  .row:last-child{border-bottom:none;}
-  .row .bill-name{font-weight:bold;}
-  .toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
-  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
-  .toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
-  .toggle:checked::after{left:23px;background:white;}
-  .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
-  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
-  .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
-  .month-summary{margin-top:10px;padding:12px;border-radius:10px;font-size:16px;transition: background-color 0.5s ease;}
-  .month-summary.all-paid{background-color:#179d4d;color:white;}
-  .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
-  .bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
-  .bill-item:last-child{border-bottom:none;}
-  .bill-item .paid-amount{color:#1db954;}
-  .navigation-buttons{display:none;}
+body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
+h1{text-align:center;margin:16px 0;}
+.card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.3s ease-in-out;}
+.card h2{text-align:center;margin-bottom:10px;font-size:22px;}
+.card .income{font-size:18px;margin-top:5px;display:block;}
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
+.row:last-child{border-bottom:none;}
+.row .bill-name{font-weight:bold;}
+.toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
+.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
+.toggle:checked::after{left:23px;background:white;}
+.progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
+.summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
+.month-summary{margin-top:10px;padding:12px;border-radius:10px;font-size:16px;transition: background-color 0.5s ease;}
+.month-summary h3{margin-top:0;font-size:18px;text-align:center;}
+.bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
+.bill-item:last-child{border-bottom:none;}
+.bill-item .paid-amount{color:#1db954;}
 </style>
 </head>
 <body>
-<h1>Pagos V1.0</h1>
+<h1>Pagos V1.35</h1>
 <section id="weekContainer"></section>
-<div class="navigation-buttons">
-  <button id="prevWeek">Previous</button>
-  <button id="nextWeek">Next</button>
-</div>
 <div class="summary" id="allSummary"></div>
 <div class="month-summary" id="monthSummary"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
+<script>
+let state={};
 
-const firebaseConfig = {
-  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
-  authDomain: "budget-tracker-1eea7.firebaseapp.com",
-  projectId: "budget-tracker-1eea7",
-  storageBucket: "budget-tracker-1eea7.appspot.com",
-  messagingSenderId: "579597071031",
-  appId: "1:579597071031:web:f30c2d42cc57268707d332"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const TOGGLE_DOC = doc(db,"toggles","weeklyState");
-let state = {};
-
-// Helper: parse date in Arizona timezone
+// Helper for AZ dates
 function parseDateAZ(dateStr){
-  const [y,m,d] = dateStr.split('-').map(Number);
+  const [y,m,d]=dateStr.split('-').map(Number);
   return new Date(y,m-1,d);
 }
+function money(n){return '$'+Number(n).toLocaleString();}
 
-// 4-week base cycle bills
-const BASE_CYCLE = [
-  {id:'city',name:'City of Phoenix',amt:60,due:'2025-09-04'},
-  {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'2025-09-11'},
-  {id:'progressive',name:'Progressive',amt:300,due:'2025-09-15'},
-  {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-13'},
-  {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-15'},
-  {id:'house',name:'House payment',amt:950,due:'2025-09-30'},
-  {id:'rogue',name:'Rogue',amt:700,due:'2025-09-03'},
-  {id:'hoa',name:'HOA',amt:160,due:'2025-09-01'},
-  {id:'kicks',name:'Kicks',amt:472,due:'2025-09-30'},
-  {id:'amazon',name:'Amazon prime',amt:50,due:'2025-09-08'},
-  {id:'walmart',name:'Walmart',amt:75,due:'2025-09-17'},
-  {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'2025-09-15'},
-  {id:'capitalone',name:'Capital one',amt:189,due:'2025-09-10'},
-  {id:'frontier',name:'Frontier',amt:65,due:'2025-09-15'},
-  {id:'chase',name:'Chase',amt:125,due:'2025-09-15'},
-  {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'2025-09-15'},
-  {id:'fridge',name:'Fridge',amt:60,due:'2025-09-01'},
-  {id:'penasco',name:'Peñasco',amt:45,due:'2025-09-01'},
-  {id:'vegas',name:'Vegas',amt:51,due:'2025-09-01'}
+// Paydates data
+const WEEKS=[
+  {date:'2025-08-22',amount:2017,bills:[
+    {id:'kicks',name:'Kicks',amt:472,due:'2025-08-22'},
+    {id:'progressive',name:'Progressive',amt:300,due:'2025-08-22'},
+    {id:'rogue',name:'Rogue',amt:700,due:'2025-08-22'},
+    {id:'fridge',name:'Fridge',amt:60,due:'2025-08-22'},
+    {id:'penasco',name:'Peñasco',amt:45,due:'2025-08-22'},
+    {id:'vegas',name:'Vegas',amt:51,due:'2025-08-22'},
+    {id:'amazon',name:'Amazon',amt:50,due:'2025-08-22'}
+  ]},
+  {date:'2025-08-29',amount:650,bills:[
+    {id:'hawaiian',name:'Hawaiian Air',amt:65,due:'2025-08-29'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'2025-08-29'},
+    {id:'chase',name:'Chase',amt:125,due:'2025-08-29'},
+    {id:'frontier',name:'Frontier',amt:65,due:'2025-08-29'}
+  ]},
+  {date:'2025-09-05',amount:2017,bills:[
+    {id:'house',name:'House payment',amt:950,due:'2025-09-05'},
+    {id:'qs3064',name:'QS 3064',amt:100,due:'2025-09-05'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-05'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-05'},
+    {id:'hoa',name:'HOA',amt:160,due:'2025-09-05'}
+  ]},
+  {date:'2025-09-12',amount:650,bills:[
+    {id:'walmart',name:'Walmart',amt:75,due:'2025-09-12'},
+    {id:'qs5989',name:'Quicksilver5989',amt:100,due:'2025-09-12'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'2025-09-12'}
+  ]}
 ];
 
-// Generate weeks in 4-week cycles
-function generateWeeksAZ(startDate,numWeeks){
-  const weeks=[];
-  let start=parseDateAZ(startDate);
-  const cycleLength=4; // 4 weeks per cycle
-
-  for(let i=0;i<numWeeks;i++){
-    const cycleOffset=Math.floor(i/cycleLength); // month offset
-    const weekBills=BASE_CYCLE.map(b=>{
-      const baseDue=parseDateAZ(b.due);
-      const newDue=new Date(baseDue);
-      newDue.setMonth(baseDue.getMonth()+cycleOffset);
-      return {...b,due:newDue.toISOString().slice(0,10)};
-    });
-    weeks.push({date:start.toISOString().slice(0,10),amount:4005,bills:weekBills});
-    start.setDate(start.getDate()+7);
-  }
-  return weeks;
-}
-
-// Example: 12 weeks
-const WEEKS = generateWeeksAZ('2025-08-22',12);
-let currentWeekIndex = 0;
-function money(n){return '$'+Number(n).toLocaleString();}
+let currentWeekIndex=0;
 
 // Render weekly card
 function renderWeek(){
@@ -122,143 +82,68 @@ function renderWeek(){
   container.innerHTML='';
   const pc=WEEKS[currentWeekIndex];
   let totalPaid=0;
-  pc.bills.forEach(b=>{
-    const toggleId=`${b.id}_${b.due}`;
-    if(state[toggleId]) totalPaid+=b.amt;
-  });
-  const remaining=pc.amount-totalPaid;
-  const pct=pc.amount?Math.round((totalPaid/pc.amount)*100):0;
-
+  pc.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
+  const pct=Math.round((totalPaid/pc.amount)*100);
   let html=`<div class="card">
-    <div class="card-header">
-      <h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
-      <span class="income">Income: ${money(pc.amount)}</span></h2>
-    </div>
-    <div class="bill-list">`;
-  
+    <div class="card-header"><h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString()} <span class="income">Income: ${money(pc.amount)}</span></h2></div>`;
   pc.bills.forEach(b=>{
     const toggleId=`${b.id}_${b.due}`;
     const checked=state[toggleId]?'checked':'';
-    const formattedDue=parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
     html+=`<div class="row">
-      <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
-      <input type="checkbox" class="toggle" data-bill-id="${b.id}" data-due="${b.due}" ${checked}>
+      <span>${b.name} - ${money(b.amt)}</span>
+      <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
     </div>`;
   });
-
-  html+=`</div>
-    <div class="card-footer">
-      <p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
-      <div class="progress"><i style="width:${pct}%"></i></div>
-    </div>
-  </div>`;
+  html+=`<div class="card-footer">
+    <p>Paid: ${money(totalPaid)} | Remaining: ${money(pc.amount-totalPaid)}</p>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+  </div></div>`;
   container.innerHTML=html;
-
   renderAllSummary();
   renderMonthSummary();
 }
 
-// All summary
+// Overall summary
 function renderAllSummary(){
-  const container=document.getElementById('allSummary');
   let planned=0,paid=0;
-  WEEKS.forEach(w=>{
-    w.bills.forEach(b=>{
-      planned+=b.amt;
-      const toggleId=`${b.id}_${b.due}`;
-      if(state[toggleId]) paid+=b.amt;
-    });
-  });
-  container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
+  WEEKS.forEach(w=>w.bills.forEach(b=>{
+    planned+=b.amt;
+    if(state[`${b.id}_${b.due}`]) paid+=b.amt;
+  }));
+  document.getElementById('allSummary').innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
-// Month summary: 4 paydates in the cycle
+// Month summary: 4 paydates
 function renderMonthSummary(){
   const container=document.getElementById('monthSummary');
-  container.innerHTML='';
-
-  const cycleLength=4;
-  const startCycleIndex=Math.floor(currentWeekIndex/cycleLength)*cycleLength;
-  const cycleWeeks=WEEKS.slice(startCycleIndex,startCycleIndex+cycleLength);
-
-  html=`<h3>${parseDateAZ(cycleWeeks[0].date).toLocaleDateString('en-US',{month:'long',year:'numeric'})} Overview</h3>`;
-  
-  cycleWeeks.forEach((w,idx)=>{
+  let html=`<h3>September Overview</h3>`;
+  WEEKS.forEach((w,idx)=>{
     let totalPaid=0;
-    let totalAmount=w.amount;
-    html+=`<div style="margin-top:10px;padding:10px;border:1px solid #32384e;border-radius:8px;">
-      <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</strong>
-      <div style="margin-top:6px;">`;
-    
+    w.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
+    const pct=Math.round((totalPaid/w.amount)*100);
+    html+=`<div style="margin:10px 0;padding:10px;border:1px solid #32384e;border-radius:8px;">
+      <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString()}</strong>`;
     w.bills.forEach(b=>{
       const toggleId=`${b.id}_${b.due}`;
-      if(state[toggleId]) totalPaid+=b.amt;
       const paidClass=state[toggleId]?'paid-amount':'';
-      html+=`<div style="display:flex;justify-content:space-between;">
-        <span>${b.name} (Due: ${parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'})})</span>
-        <span class="${paidClass}">${money(b.amt)}</span>
-      </div>`;
+      html+=`<div style="display:flex;justify-content:space-between;"><span>${b.name}</span><span class="${paidClass}">${money(b.amt)}</span></div>`;
     });
-
-    const pct=Math.round((totalPaid/totalAmount)*100);
-    html+=`<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div>`;
-    html+=`</div></div>`;
+    html+=`<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div></div>`;
   });
-
   container.innerHTML=html;
 }
 
 // Toggle handler
-document.addEventListener('change',async e=>{
+document.addEventListener('change',e=>{
   if(e.target.matches('.toggle')){
-    const billId=e.target.dataset.billId;
-    const due=e.target.dataset.due;
-    const toggleId=`${billId}_${due}`;
-    state[toggleId]=e.target.checked;
-    renderWeek();
-    try{await setDoc(TOGGLE_DOC,{[toggleId]:state[toggleId]},{merge:true});}
-    catch(err){console.warn("Error saving:",err);}
-  }
-});
-
-// Swipe gestures
-let touchstartX=0,touchendX=0;
-const SWIPE_THRESHOLD=100;
-const weekContainer=document.getElementById('weekContainer');
-function handleGesture(){
-  if(touchendX<touchstartX-SWIPE_THRESHOLD && currentWeekIndex<WEEKS.length-1){currentWeekIndex++;renderWeek();}
-  if(touchendX>touchstartX+SWIPE_THRESHOLD && currentWeekIndex>0){currentWeekIndex--;renderWeek();}
-}
-weekContainer.addEventListener('touchstart',e=>touchstartX=e.changedTouches[0].screenX);
-weekContainer.addEventListener('touchend',e=>{touchendX=e.changedTouches[0].screenX;handleGesture();});
-
-// Pull-to-refresh
-let startY=0,endY=0,PULL_THRESHOLD=80;
-document.addEventListener('touchstart',e=>startY=e.touches[0].pageY);
-document.addEventListener('touchmove',e=>{endY=e.touches[0].pageY;if(window.scrollY===0 && endY>startY) document.body.style.transform=`translateY(${endY-startY}px)`;});
-document.addEventListener('touchend',e=>{if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD) window.location.reload();document.body.style.transform=`translateY(0)`;});
-
-// Firebase init
-signInAnonymously(auth).catch(console.error);
-onAuthStateChanged(auth,async user=>{
-  if(user){
-    try{const snap=await getDoc(TOGGLE_DOC);state=snap.exists()?snap.data():{};}
-    catch(e){console.warn("Error reading Firestore:",e);}
-    const today=new Date();
-    WEEKS.forEach((w,i)=>{
-      const start=parseDateAZ(w.date);
-      const end=new Date(start);end.setDate(start.getDate()+6);
-      if(today>=start && today<=end) currentWeekIndex=i;
-    });
+    const id=e.target.dataset.id;
+    state[id]=e.target.checked;
     renderWeek();
   }
 });
-</script>
 
-<script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
-}
+// Initial render
+renderWeek();
 </script>
 </body>
 </html>
