@@ -33,7 +33,7 @@
 </style>
 </head>
 <body>
-<h1>Pagos V1.3</h1>
+<h1>Pagos V1.0</h1>
 <section id="weekContainer"></section>
 <div class="navigation-buttons">
   <button id="prevWeek">Previous</button>
@@ -172,42 +172,40 @@ function renderAllSummary(){
   container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
-// Month summary
+// Month summary: 4 paydates in the cycle
 function renderMonthSummary(){
   const container=document.getElementById('monthSummary');
-  const month=parseDateAZ(WEEKS[currentWeekIndex].date).getMonth();
-  const year=parseDateAZ(WEEKS[currentWeekIndex].date).getFullYear();
-  const allBills=WEEKS.flatMap(w=>w.bills);
+  container.innerHTML='';
 
-  const groupedBills={};
-  allBills.forEach(b=>{
-    const dueMonth=parseDateAZ(b.due).getMonth();
-    const dueYear=parseDateAZ(b.due).getFullYear();
-    if(dueMonth===month && dueYear===year){
-      const key=`${b.id}_${b.due}`;
-      if(!groupedBills[key]) groupedBills[key]={...b,isPaid:false};
-      if(state[key]) groupedBills[key].isPaid=true;
-    }
-  });
+  const cycleLength=4;
+  const startCycleIndex=Math.floor(currentWeekIndex/cycleLength)*cycleLength;
+  const cycleWeeks=WEEKS.slice(startCycleIndex,startCycleIndex+cycleLength);
 
-  const billsForDisplay=Object.values(groupedBills);
-  let totalPaid=0,totalPlanned=0;
-  let html=`<h3>${parseDateAZ(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
+  html=`<h3>${parseDateAZ(cycleWeeks[0].date).toLocaleDateString('en-US',{month:'long',year:'numeric'})} Overview</h3>`;
   
-  billsForDisplay.sort((a,b)=>parseDateAZ(a.due)-parseDateAZ(b.due));
-  billsForDisplay.forEach(b=>{
-    totalPlanned+=b.amt;
-    if(b.isPaid) totalPaid+=b.amt;
-    const formattedDue=parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
-    html+=`<div class="bill-item">
-      <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
-      <span class="${b.isPaid?'paid-amount':''}">${money(b.amt)}</span>
-    </div>`;
+  cycleWeeks.forEach((w,idx)=>{
+    let totalPaid=0;
+    let totalAmount=w.amount;
+    html+=`<div style="margin-top:10px;padding:10px;border:1px solid #32384e;border-radius:8px;">
+      <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</strong>
+      <div style="margin-top:6px;">`;
+    
+    w.bills.forEach(b=>{
+      const toggleId=`${b.id}_${b.due}`;
+      if(state[toggleId]) totalPaid+=b.amt;
+      const paidClass=state[toggleId]?'paid-amount':'';
+      html+=`<div style="display:flex;justify-content:space-between;">
+        <span>${b.name} (Due: ${parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'})})</span>
+        <span class="${paidClass}">${money(b.amt)}</span>
+      </div>`;
+    });
+
+    const pct=Math.round((totalPaid/totalAmount)*100);
+    html+=`<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div>`;
+    html+=`</div></div>`;
   });
 
-  if(billsForDisplay.length===0) html+=`<p style="text-align:center;">No bills due this month.</p>`;
   container.innerHTML=html;
-  container.classList.toggle('all-paid',totalPaid===totalPlanned && totalPlanned>0);
 }
 
 // Toggle handler
