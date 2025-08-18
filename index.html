@@ -23,10 +23,10 @@
   .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
   .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
   .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
-  .month-summary{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px;}
-  .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
-  .month-bill{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
-  .month-bill:last-child{border-bottom:none;}
+  .month-summary, .upcoming-bills{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px;}
+  .month-summary h3, .upcoming-bills h3{margin-top:0;font-size:18px;text-align:center;}
+  .bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
+  .bill-item:last-child{border-bottom:none;}
   .navigation-buttons{display:none;}
 </style>
 </head>
@@ -39,6 +39,7 @@
 </div>
 <div class="summary" id="allSummary"></div>
 <div class="month-summary" id="monthSummary"></div>
+<div class="upcoming-bills" id="upcomingBills"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
@@ -126,7 +127,7 @@ function renderWeek(){
 
   let html = `<div class="card">
     <div class="card-header">
-      <h2>${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
+      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
@@ -150,6 +151,7 @@ function renderWeek(){
   
   renderAllSummary();
   renderMonthSummary();
+  renderUpcomingBills();
 }
 
 function renderAllSummary(){
@@ -191,9 +193,34 @@ function renderMonthSummary(){
   
   sortedBillNames.forEach(billName => {
       const billData = groupedBills[billName];
-      html += `<div class="month-bill">
+      html += `<div class="bill-item">
                   <span><strong>${billName}</strong></span>
                   <span>${money(billData.paidAmount)} / ${money(billData.totalAmount)}</span>
+              </div>`;
+  });
+  
+  container.innerHTML = html;
+}
+
+function renderUpcomingBills(){
+  const container = document.getElementById('upcomingBills');
+  
+  // Get all bills from all weeks and sort them by due date
+  const allBills = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})));
+  allBills.sort((a,b) => new Date(a.due) - new Date(b.due));
+
+  // Filter for bills due from September onwards
+  const today = new Date();
+  const septemberBills = allBills.filter(b => new Date(b.due) >= new Date(today.getFullYear(), 8, 1));
+  
+  let html = `<h3>Upcoming Bills</h3>`;
+  
+  septemberBills.forEach(b => {
+      const dueDate = new Date(b.due);
+      const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}/${dueDate.getFullYear()}`;
+      html += `<div class="bill-item">
+                  <span><strong>${b.name}</strong></span>
+                  <span>Due: ${formattedDue} - ${money(b.amt)}</span>
               </div>`;
   });
   
@@ -261,7 +288,6 @@ document.addEventListener('touchend', e => {
     }
     document.body.style.transform = `translateY(0)`;
 });
-
 
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
