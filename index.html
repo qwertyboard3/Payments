@@ -33,7 +33,7 @@
 </style>
 </head>
 <body>
-<h1>Pagos v1.1</h1>
+<h1>Pagos V1.2</h1>
 <section id="weekContainer"></section>
 <div class="navigation-buttons">
   <button id="prevWeek">Previous</button>
@@ -62,62 +62,71 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-const BASE_WEEKS = [
-  // Week 1
-  { amount: 2017, bills: [
-    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-    {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
-    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
-    {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
-    {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
-    {id:'amazon',name:'Amazon',amt:50,due:'09/08/2025'}
-  ]},
-  // Week 2
-  { amount: 650, bills: [
-    {id:'hawaiian',name:'Hawaiian Air',amt:65,due:'08/29/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'08/29/2025'},
-    {id:'chase',name:'Chase',amt:125,due:'08/29/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'08/29/2025'}
-  ]},
-  // Week 3
-  { amount: 2017, bills: [
-    {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
-    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'}
-  ]},
-  // Week 4
-  { amount: 650, bills: [
-    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'}
-  ]}
+// Master list of all bills with their due dates
+const MASTER_BILLS = [
+  {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
+  {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
+  {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
+  {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+  {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
+  {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
+  {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
+  {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
+  {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+  {id:'amazon',name:'Amazon',amt:50,due:'09/08/2025'},
+  {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
+  {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
+  {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'},
+  {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
+  {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
+  {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+  {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
+  {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
+  {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'}
 ];
 
-function generateWeeks(startDate, numWeeks){
-  const weeks=[];
-  // Fixes time zone issue by creating the date in local time
-  let parts = startDate.split('-');
-  let date = new Date(parts[0], parts[1] - 1, parts[2]);
+// Define your pay dates and income amounts
+const PAY_DATES = [
+  { date: '2025-08-22', amount: 2017 },
+  { date: '2025-08-29', amount: 650 },
+  { date: '2025-09-05', amount: 2017 },
+  { date: '2025-09-12', amount: 650 },
+  { date: '2025-09-19', amount: 2017 },
+  { date: '2025-09-26', amount: 650 },
+  { date: '2025-10-03', amount: 2017 },
+];
 
-  for(let i=0;i<numWeeks;i++){
-    const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
-    const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
-      const due = new Date(b.due);
-      const newDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-      newDue.setDate(newDue.getDate() + 7 * Math.floor(i / BASE_WEEKS.length) * BASE_WEEKS.length);
-      return {...b, due: newDue.toISOString().slice(0,10)};
-    })};
-    w.date = date.toISOString().slice(0,10);
-    weeks.push(w);
-    date.setDate(date.getDate()+7);
+function generateWeeks() {
+  const weeks = [];
+  for (let i = 0; i < PAY_DATES.length; i++) {
+    const payDate = PAY_DATES[i].date;
+    const income = PAY_DATES[i].amount;
+    
+    let nextPayDate = new Date(new Date(payDate + 'T12:00:00'));
+    nextPayDate.setDate(nextPayDate.getDate() + 7);
+    
+    // Check if it's the last pay date to handle bills due after it
+    if (i < PAY_DATES.length - 1) {
+        nextPayDate = new Date(PAY_DATES[i + 1].date + 'T12:00:00');
+    }
+    
+    const billsForWeek = MASTER_BILLS.filter(bill => {
+      const dueDate = new Date(bill.due + 'T12:00:00');
+      const payDateObj = new Date(payDate + 'T12:00:00');
+      // Bills are included if due on or after the current pay date, but before the next one
+      return dueDate >= payDateObj && dueDate < nextPayDate;
+    });
+
+    weeks.push({
+      date: payDate,
+      amount: income,
+      bills: billsForWeek
+    });
   }
   return weeks;
 }
 
-const WEEKS = generateWeeks('2025-08-22', 12);
+const WEEKS = generateWeeks();
 let currentWeekIndex = 0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
@@ -134,7 +143,6 @@ function renderWeek(){
   const remaining = pc.amount - totalPaid;
   const pct = Math.round((totalPaid/pc.amount)*100);
 
-  // This is the updated line to correctly display the date
   let formattedPayDate = new Date(pc.date + 'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric', year:'numeric'});
 
   let html = `<div class="card">
