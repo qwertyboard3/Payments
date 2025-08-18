@@ -173,7 +173,8 @@ function renderMonthSummary(){
   const month = new Date(WEEKS[currentWeekIndex].date).getMonth();
   const year = new Date(WEEKS[currentWeekIndex].date).getFullYear();
 
-  const billsInMonth = WEEKS.flatMap(w => w.bills)
+  // Updated logic to get all bills for the month correctly
+  const billsInMonth = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})))
                            .filter(b => {
                                const dueDate = new Date(b.due);
                                return dueDate.getMonth() === month && dueDate.getFullYear() === year;
