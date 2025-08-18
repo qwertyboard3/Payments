@@ -92,7 +92,6 @@ function generateWeeks(startDate, numWeeks){
   for(let i=0;i<numWeeks;i++){
     const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
     const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
-      // clone and update due date
       const due = new Date(b.due);
       due.setDate(due.getDate()+7*i);
       const dueStr = due.toISOString().slice(0,10);
@@ -115,17 +114,21 @@ function renderWeek(){
   container.innerHTML='';
   const pc = WEEKS[currentWeekIndex];
   let totalPaid=0;
-  pc.bills.forEach(b=>{if(state[b.id]) totalPaid+=b.amt;});
+  pc.bills.forEach(b=>{
+    const toggleId = `${b.id}_${pc.date}`;
+    if(state[toggleId]) totalPaid+=b.amt;
+  });
   const remaining = pc.amount - totalPaid;
   const pct = Math.round((totalPaid/pc.amount)*100);
 
   let html = `<div class="card">
     <h2>${pc.date} | Income: ${money(pc.amount)}</h2>`;
   pc.bills.forEach(b=>{
-    const checked = state[b.id]?'checked':'';
+    const toggleId = `${b.id}_${pc.date}`;
+    const checked = state[toggleId]?'checked':'';
     html+=`<div class="row">
       <span>${b.name} (Due: ${b.due}) - ${money(b.amt)}</span>
-      <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
+      <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
     </div>`;
   });
   html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
@@ -145,7 +148,8 @@ function renderAllSummary(){
   WEEKS.forEach(w=>{
     w.bills.forEach(b=>{
       planned+=b.amt;
-      if(state[b.id]) paid+=b.amt;
+      const toggleId = `${b.id}_${w.date}`;
+      if(state[toggleId]) paid+=b.amt;
     });
   });
   const remaining = planned - paid;
@@ -177,7 +181,6 @@ onAuthStateChanged(auth, async user=>{
       const snap = await getDoc(TOGGLE_DOC);
       state = snap.exists()?snap.data():{};
     }catch(e){ console.warn("Error reading Firestore:",e); }
-    // Auto-select current week
     const today = new Date();
     WEEKS.forEach((w,i)=>{
       const start = new Date(w.date);
