@@ -2,63 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>4-Week Paycheck Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Firebase Debug Page</title>
 <style>
-  :root {
-    --bg:#0f1115; --panel:#171923; --text:#e6e8f0;
-    --text-dim:#a7b0c0; --good:#1db954; --bad:#ff5876;
-  }
-  body{margin:0; font-family:system-ui; background:var(--bg); color:var(--text);}
-  .wrap{max-width:500px; margin:20px auto; padding:0 16px;}
-  h1,h2{margin:4px 0;}
-  .card{background:var(--panel); padding:14px; margin-bottom:16px; border-radius:12px;}
-  .row{display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #2a2f3a;}
+  body{background:#0f1115;color:#e6e8f0;font-family:system-ui;margin:0;padding:16px;}
+  h1,h2{margin:6px 0;}
+  .log{background:#171923;padding:8px;margin:6px 0;border-radius:6px;white-space:pre-wrap;font-family:monospace;}
+  .ok{color:#1db954;}
+  .warn{color:#ffcc00;}
+  .error{color:#ff5876;}
+  .card{background:#171923;padding:12px;margin-bottom:12px;border-radius:8px;}
+  .row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2a2f3a;}
   .row:last-child{border-bottom:none;}
-  .toggle{width:40px;height:20px;position:relative;appearance:none;background:#252a36;border-radius:20px;outline:none;cursor:pointer;}
-  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#8a93a8;border-radius:50%;transition:.2s;}
-  .toggle:checked{background:#1db954;}
-  .toggle:checked::after{left:22px;background:#fff;}
-  .progress{height:8px;background:#242938;border-radius:8px;margin-top:10px;overflow:hidden;}
-  .progress > i{display:block;height:100%;background:#1db954;width:0%;}
-  .hidden{display:none;}
-  .week-nav{display:flex;justify-content:space-between;margin-bottom:10px;}
-  button{background:#7c5cff;color:#fff;border:none;padding:6px 12px;border-radius:8px;cursor:pointer;}
+  input[type=checkbox]{width:20px;height:20px;}
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>Paycheck Tracker</h1>
-
-<div class="week-nav">
-  <button id="prevWeek">← Prev</button>
-  <span id="weekLabel">Week</span>
-  <button id="nextWeek">Next →</button>
-</div>
-
-<section id="weeks"></section>
-</div>
+<h1>Firebase Debug Page</h1>
+<div id="logs" class="log"></div>
+<section id="paychecks"></section>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
 
-// ===== Firebase config =====
+const logs = document.getElementById('logs');
+function log(msg,type='log'){ logs.innerHTML += `<div class="${type}">${msg}</div>`; }
+
+// ===== Firebase Config =====
 const firebaseConfig = {
   apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
   authDomain: "budget-tracker-1eea7.firebaseapp.com",
   projectId: "budget-tracker-1eea7",
-  storageBucket: "budget-tracker-1eea7.appspot.com",
+  storageBucket: "budget-tracker-1eea7.firebasestorage.app",
   messagingSenderId: "579597071031",
   appId: "1:579597071031:web:f30c2d42cc57268707d332"
 };
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const TOGGLE_DOC = doc(db, "toggles", "paychecks");
 
-// ===== Data =====
+log("Initializing Firebase...");
+let app, db, auth;
+try{
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+  log("Firebase initialized ✅", "ok");
+}catch(e){ log("Firebase init error: "+e, "error"); }
+
+// ===== Paychecks Data =====
 const PAYCHECKS = [
   { date:'2025-09-19', amount:2017, bills:[
       {id:'kicks', name:'Kicks', amt:472},
@@ -93,80 +84,62 @@ const PAYCHECKS = [
   }
 ];
 
-// ===== Helpers =====
-function money(n){ return '$'+Number(n).toLocaleString(undefined,{maximumFractionDigits:0}); }
-
+const TOGGLE_DOC = doc(db, "toggles", "paychecks");
 let state = {};
-let currentWeek = 0;
-const weeksEl = document.getElementById('weeks');
-const weekLabel = document.getElementById('weekLabel');
 
-// ===== Functions =====
-async function loadState(){
-  try{
-    const snap = await getDoc(TOGGLE_DOC);
-    state = snap.exists() ? snap.data() : {};
-  }catch(e){console.warn("Error reading Firestore:",e);}
-}
-
-function renderWeek(index){
-  weeksEl.innerHTML='';
-  const week = PAYCHECKS[index];
-  weekLabel.textContent = `Week ${index+1} - ${week.date}`;
-  let totalPaid = 0;
-  const card = document.createElement('div');
-  card.className='card';
-  week.bills.forEach(b=>{
-    const checked = state[b.id]?'checked':'';
-    if(state[b.id]) totalPaid+=b.amt;
-    const row = document.createElement('div');
-    row.className='row';
-    row.innerHTML=`<span>${b.name} (${money(b.amt)})</span>
-      <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>`;
-    card.appendChild(row);
+// ===== Helpers =====
+function money(n){ return '$'+Number(n).toLocaleString(); }
+function renderPaychecks(){
+  const container = document.getElementById('paychecks');
+  container.innerHTML='';
+  PAYCHECKS.forEach((pc,i)=>{
+    const card = document.createElement('div'); card.className='card';
+    let html = `<h2>Week ${i+1} - ${pc.date} | Amount: ${money(pc.amount)}</h2>`;
+    let totalPaid=0;
+    pc.bills.forEach(b=>{
+      const checked = state[b.id]?'checked':'';
+      if(state[b.id]) totalPaid+=b.amt;
+      html += `<div class="row">
+        <span>${b.name} (${money(b.amt)})</span>
+        <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
+      </div>`;
+    });
+    const remaining = pc.amount-totalPaid;
+    html += `<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>`;
+    card.innerHTML = html;
+    container.appendChild(card);
   });
-  const remaining = week.amount - totalPaid;
-  const progress = Math.round((totalPaid/week.amount)*100);
-  const progressBar = document.createElement('div');
-  progressBar.className='progress';
-  progressBar.innerHTML=`<i style="width:${progress}%;"></i>`;
-  const totals = document.createElement('div');
-  totals.style.marginTop='8px';
-  totals.innerHTML=`Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}`;
-  card.appendChild(totals);
-  card.appendChild(progressBar);
-  weeksEl.appendChild(card);
 }
 
-// ===== Event Handlers =====
+// ===== Auth & Firestore =====
+signInAnonymously(auth).catch(e=>log("Anonymous sign-in error: "+e,"error"));
+onAuthStateChanged(auth, async user=>{
+  if(user){
+    log("Signed in anonymously: "+user.uid, "ok");
+    try{
+      const snap = await getDoc(TOGGLE_DOC);
+      state = snap.exists()?snap.data():{};
+      log("Loaded Firestore toggle state ✅", "ok");
+    }catch(e){ log("Error reading Firestore: "+e,"error"); }
+    renderPaychecks();
+  } else {
+    log("User not signed in ⚠️", "warn");
+  }
+});
+
+// ===== Checkbox updates =====
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
     const id=e.target.dataset.id;
     state[id]=e.target.checked;
-    try{await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});}
-    catch(err){console.warn("Error saving toggle:",err);}
-    renderWeek(currentWeek);
+    try{
+      await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});
+      log("Updated "+id+" in Firestore ✅", "ok");
+    }catch(err){
+      log("Failed to update "+id+": "+err,"error");
+    }
+    renderPaychecks();
   }
-});
-
-document.getElementById('prevWeek').addEventListener('click',()=>{
-  if(currentWeek>0){currentWeek--; renderWeek(currentWeek);}
-});
-document.getElementById('nextWeek').addEventListener('click',()=>{
-  if(currentWeek<PAYCHECKS.length-1){currentWeek++; renderWeek(currentWeek);}
-});
-
-// ===== Init =====
-signInAnonymously(auth).catch(console.error);
-onAuthStateChanged(auth, user=>{
-  if(user){
-    loadState().then(()=>{
-      // Auto-select current week based on date
-      const today = new Date();
-      currentWeek = PAYCHECKS.findIndex(p=>new Date(p.date) <= today) || 0;
-      renderWeek(currentWeek);
-    });
-  } else console.warn("Not signed in");
 });
 </script>
 </body>
