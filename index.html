@@ -28,23 +28,24 @@ h1{text-align:center;margin:16px 0;}
 </style>
 </head>
 <body>
-<h1>Pagos V1.35</h1>
+<h1>Pagos V1.0</h1>
 <section id="weekContainer"></section>
 <div class="summary" id="allSummary"></div>
-<div class="month-summary" id="monthSummary"></div>
+<div id="monthSummaries"></div>
 
 <script>
-let state={};
+let state = {};
 
-// Helper for AZ dates
+// Helper: Arizona time date
 function parseDateAZ(dateStr){
-  const [y,m,d]=dateStr.split('-').map(Number);
-  return new Date(y,m-1,d);
+    const [y,m,d] = dateStr.split('-').map(Number);
+    return new Date(y,m-1,d + new Date().getTimezoneOffset()/60/24);
 }
+
 function money(n){return '$'+Number(n).toLocaleString();}
 
-// Paydates data
-const WEEKS=[
+// Initial 4 paydates data
+const INITIAL_WEEKS=[
   {date:'2025-08-22',amount:2017,bills:[
     {id:'kicks',name:'Kicks',amt:472,due:'2025-08-22'},
     {id:'progressive',name:'Progressive',amt:300,due:'2025-08-22'},
@@ -74,76 +75,102 @@ const WEEKS=[
   ]}
 ];
 
-let currentWeekIndex=0;
+// Generate future months by repeating initial pattern every 4 weeks
+function generateFutureWeeks(initialWeeks, numCycles){
+    let weeks = [...initialWeeks];
+    let lastDate = parseDateAZ(initialWeeks[initialWeeks.length-1].date);
+    for(let cycle=1; cycle<numCycles; cycle++){
+        initialWeeks.forEach(w=>{
+            lastDate.setDate(lastDate.getDate() + 7);
+            const newBills = w.bills.map(b=>({...b, due: lastDate.toISOString().slice(0,10)}));
+            weeks.push({date:lastDate.toISOString().slice(0,10),amount:w.amount,bills:newBills});
+        });
+    }
+    return weeks;
+}
 
-// Render weekly card
-function renderWeek(){
-  const container=document.getElementById('weekContainer');
-  container.innerHTML='';
-  const pc=WEEKS[currentWeekIndex];
-  let totalPaid=0;
-  pc.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
-  const pct=Math.round((totalPaid/pc.amount)*100);
-  let html=`<div class="card">
-    <div class="card-header"><h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString()} <span class="income">Income: ${money(pc.amount)}</span></h2></div>`;
-  pc.bills.forEach(b=>{
-    const toggleId=`${b.id}_${b.due}`;
-    const checked=state[toggleId]?'checked':'';
-    html+=`<div class="row">
-      <span>${b.name} - ${money(b.amt)}</span>
-      <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
-    </div>`;
-  });
-  html+=`<div class="card-footer">
-    <p>Paid: ${money(totalPaid)} | Remaining: ${money(pc.amount-totalPaid)}</p>
-    <div class="progress"><i style="width:${pct}%"></i></div>
-  </div></div>`;
-  container.innerHTML=html;
-  renderAllSummary();
-  renderMonthSummary();
+const WEEKS = generateFutureWeeks(INITIAL_WEEKS,3); // 3 cycles => ~3 months
+
+// Render all paydates
+function renderWeeks(){
+    const container = document.getElementById('weekContainer');
+    container.innerHTML = '';
+    WEEKS.forEach(pc=>{
+        let totalPaid = 0;
+        pc.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
+        const pct = pc.bills.every(b=>state[`${b.id}_${b.due}`]) ? 100 : Math.round((totalPaid/pc.amount)*100);
+        let html=`<div class="card">
+            <div class="card-header"><h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString()} <span class="income">Income: ${money(pc.amount)}</span></h2></div>`;
+        pc.bills.forEach(b=>{
+            const toggleId=`${b.id}_${b.due}`;
+            const checked = state[toggleId]?'checked':'';
+            html+=`<div class="row">
+                <span>${b.name} - ${money(b.amt)}</span>
+                <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
+            </div>`;
+        });
+        html+=`<div class="card-footer">
+            <p>Paid: ${money(totalPaid)} | Remaining: ${money(pc.amount-totalPaid)}</p>
+            <div class="progress"><i style="width:${pct}%"></i></div>
+        </div></div>`;
+        container.innerHTML += html;
+    });
+    renderAllSummary();
+    renderMonthSummaries();
 }
 
 // Overall summary
 function renderAllSummary(){
-  let planned=0,paid=0;
-  WEEKS.forEach(w=>w.bills.forEach(b=>{
-    planned+=b.amt;
-    if(state[`${b.id}_${b.due}`]) paid+=b.amt;
-  }));
-  document.getElementById('allSummary').innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
+    let planned=0,paid=0;
+    WEEKS.forEach(w=>w.bills.forEach(b=>{
+        planned+=b.amt;
+        if(state[`${b.id}_${b.due}`]) paid+=b.amt;
+    }));
+    document.getElementById('allSummary').innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
-// Month summary: 4 paydates
-function renderMonthSummary(){
-  const container=document.getElementById('monthSummary');
-  let html=`<h3>September Overview</h3>`;
-  WEEKS.forEach((w,idx)=>{
-    let totalPaid=0;
-    w.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
-    const pct=Math.round((totalPaid/w.amount)*100);
-    html+=`<div style="margin:10px 0;padding:10px;border:1px solid #32384e;border-radius:8px;">
-      <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString()}</strong>`;
-    w.bills.forEach(b=>{
-      const toggleId=`${b.id}_${b.due}`;
-      const paidClass=state[toggleId]?'paid-amount':'';
-      html+=`<div style="display:flex;justify-content:space-between;"><span>${b.name}</span><span class="${paidClass}">${money(b.amt)}</span></div>`;
+// Monthly summaries
+function renderMonthSummaries(){
+    const container = document.getElementById('monthSummaries');
+    container.innerHTML = '';
+    // Group by month-year
+    const months = {};
+    WEEKS.forEach(w=>{
+        const d = parseDateAZ(w.date);
+        const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+        if(!months[key]) months[key]=[];
+        months[key].push(w);
     });
-    html+=`<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div></div>`;
-  });
-  container.innerHTML=html;
+    for(const [key,weeks] of Object.entries(months)){
+        let monthName = parseDateAZ(weeks[0].date).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+        let html = `<div class="month-summary"><h3>${monthName} Overview</h3>`;
+        weeks.forEach((w,idx)=>{
+            let totalPaid = 0;
+            w.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
+            const pct = w.bills.every(b=>state[`${b.id}_${b.due}`]) ? 100 : Math.round((totalPaid/w.amount)*100);
+            html += `<div style="margin:10px 0;padding:10px;border:1px solid #32384e;border-radius:8px;">
+                        <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString()}</strong>`;
+            w.bills.forEach(b=>{
+                const toggleId=`${b.id}_${b.due}`;
+                const paidClass = state[toggleId]?'paid-amount':'';
+                html += `<div style="display:flex;justify-content:space-between;"><span>${b.name}</span><span class="${paidClass}">${money(b.amt)}</span></div>`;
+            });
+            html += `<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div></div>`;
+        });
+        container.innerHTML += html;
+    }
 }
 
 // Toggle handler
 document.addEventListener('change',e=>{
-  if(e.target.matches('.toggle')){
-    const id=e.target.dataset.id;
-    state[id]=e.target.checked;
-    renderWeek();
-  }
+    if(e.target.matches('.toggle')){
+        const id = e.target.dataset.id;
+        state[id] = e.target.checked;
+        renderWeeks();
+    }
 });
 
-// Initial render
-renderWeek();
+renderWeeks();
 </script>
 </body>
 </html>
