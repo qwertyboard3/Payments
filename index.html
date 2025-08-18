@@ -62,58 +62,60 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-const BASE_WEEKS = [
-  { amount: 2017, bills: [
-    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-    {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
-    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
-    {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
-    {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
-    {id:'amazon',name:'Amazon',amt:50,due:'09/08/2025'}
-  ]},
-  { amount: 2017, bills: [
-    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
-    {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
-    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
-    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
-    {id:'house',name:'House payment',amt:950,due:'10/01/2025'}
-  ]}
-];
-
-function generateWeeks(startDate, numWeeks){
-  const weeks=[];
-  // Fixes time zone issue by creating the date in local time
-  let parts = startDate.split('-');
-  let date = new Date(parts[0], parts[1] - 1, parts[2]);
-
-  for(let i=0;i<numWeeks;i++){
-    const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
-    const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
-      const due = new Date(b.due);
-      const newDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-      newDue.setDate(newDue.getDate() + 7 * Math.floor(i / BASE_WEEKS.length) * BASE_WEEKS.length);
-      return {...b, due: newDue.toISOString().slice(0,10)};
-    })};
-    w.date = date.toISOString().slice(0,10);
-    weeks.push(w);
-    date.setDate(date.getDate()+7);
-  }
-  return weeks;
+// Helper: create a Date in Arizona time (UTC-7)
+function arizonaDate(y, m, d) {
+  const date = new Date(Date.UTC(y, m, d));
+  date.setUTCHours(date.getUTCHours() - 7);
+  return date;
 }
 
-const WEEKS = generateWeeks('2025-08-22', 12);
+// Updated BASE_WEEKS with your monthly bills
+const BASE_WEEKS = [
+  { 
+    amount: 4005,
+    bills: [
+      {id:'hoa',name:'HOA',amt:160,due:'2025-09-01'},
+      {id:'fridge',name:'Fridge',amt:60,due:'2025-09-01'},
+      {id:'penasco',name:'Peñasco',amt:45,due:'2025-09-01'},
+      {id:'vegas',name:'Vegas',amt:51,due:'2025-09-01'},
+      {id:'rogue',name:'Rogue',amt:700,due:'2025-09-03'},
+      {id:'city',name:'City of Phoenix',amt:60,due:'2025-09-04'},
+      {id:'amazon',name:'Amazon Prime',amt:50,due:'2025-09-08'},
+      {id:'capitalone',name:'Capital One',amt:189,due:'2025-09-10'},
+      {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'2025-09-11'},
+      {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-13'},
+      {id:'progressive',name:'Progressive',amt:300,due:'2025-09-15'},
+      {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-15'},
+      {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'2025-09-15'},
+      {id:'frontier',name:'Frontier',amt:65,due:'2025-09-15'},
+      {id:'chase',name:'Chase',amt:125,due:'2025-09-15'},
+      {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'2025-09-15'},
+      {id:'walmart',name:'Walmart',amt:75,due:'2025-09-17'},
+      {id:'house',name:'House payment',amt:950,due:'2025-09-30'},
+      {id:'kicks',name:'Kicks',amt:472,due:'2025-09-30'}
+    ]
+  }
+];
+
+// Generate weekly objects where week starts on the bill's pay date
+function generateWeeksFromBills(bills) {
+  return bills.map(b => {
+    const parts = b.due.split('-');
+    const dueDate = arizonaDate(+parts[0], +parts[1]-1, +parts[2]);
+    return {
+      amount: b.amt,
+      bills: [b],
+      date: dueDate.toISOString().slice(0,10)
+    };
+  });
+}
+
+const WEEKS = generateWeeksFromBills(BASE_WEEKS[0].bills);
 let currentWeekIndex = 0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
 
+// ------------------ Render Functions ------------------
 function renderWeek(){
   const container = document.getElementById('weekContainer');
   container.innerHTML='';
@@ -227,6 +229,7 @@ function renderMonthSummary(){
   }
 }
 
+// ------------------ Event Listeners ------------------
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
     const id = e.target.dataset.id;
@@ -271,24 +274,11 @@ let startY = 0;
 let endY = 0;
 const PULL_THRESHOLD = 80;
 
-document.addEventListener('touchstart', e => {
-    startY = e.touches[0].pageY;
-});
+document.addEventListener('touchstart', e => { startY = e.touches[0].pageY; });
+document.addEventListener('touchmove', e => { endY = e.touches[0].pageY; if (window.scrollY===0 && endY>startY){ document.body.style.transform=`translateY(${endY-startY}px)`; }});
+document.addEventListener('touchend', e => { if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD){window.location.reload();} document.body.style.transform=`translateY(0)`; });
 
-document.addEventListener('touchmove', e => {
-    endY = e.touches[0].pageY;
-    if (window.scrollY === 0 && endY > startY) {
-        document.body.style.transform = `translateY(${endY - startY}px)`;
-    }
-});
-
-document.addEventListener('touchend', e => {
-    if (window.scrollY === 0 && (endY - startY) > PULL_THRESHOLD) {
-        window.location.reload();
-    }
-    document.body.style.transform = `translateY(0)`;
-});
-
+// ------------------ Firebase Auth & Init ------------------
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
   if(user){
