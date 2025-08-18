@@ -63,52 +63,33 @@ const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
 const BASE_WEEKS = [
-  { amount: 1251, bills: [
-    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
-    {id:'amazon',name:'Amazon prime',amt:50,due:'09/08/2025'},
-    {id:'capitalone',name:'Capital one',amt:189,due:'09/10/2025'},
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+  { amount: 2017, bills: [
+    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
     {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
-  ]},
-  { amount: 1533, bills: [
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'},
-    {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
-    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
-    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
+    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
     {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
     {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
     {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
-    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
-    {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
-    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
+    {id:'amazon',name:'Amazon',amt:50,due:'09/08/2025'}
   ]},
-  { amount: 1251, bills: [
-    {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
-    {id:'amazon',name:'Amazon prime',amt:50,due:'10/08/2025'},
-    {id:'capitalone',name:'Capital one',amt:189,due:'10/10/2025'},
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'10/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
-    {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
+  { amount: 650, bills: [
+    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
+    {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
+    {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'}
   ]},
-  { amount: 1533, bills: [
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'10/15/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'},
-    {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
-    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'10/15/2025'},
-    {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
-    {id:'fridge',name:'Fridge',amt:60,due:'10/01/2025'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'10/01/2025'},
-    {id:'vegas',name:'Vegas',amt:51,due:'10/01/2025'},
-    {id:'hoa',name:'HOA',amt:160,due:'10/01/2025'},
-    {id:'house',name:'House payment',amt:950,due:'11/01/2025'},
-    {id:'kicks',name:'Kicks',amt:472,due:'11/01/2025'},
+  { amount: 2017, bills: [
+    {id:'house',name:'House Payment',amt:950,due:'10/01/2025'},
+    {id:'qs3064',name:'QS 3064',amt:100,due:'09/11/2025'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
+    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'}
   ]},
+  { amount: 650, bills: [
+    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'},
+    {id:'qs5989',name:'QS 5989',amt:100,due:'09/15/2025'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'}
+  ]}
 ];
 
 function generateWeeks(startDate, numWeeks){
@@ -129,7 +110,7 @@ function generateWeeks(startDate, numWeeks){
   return weeks;
 }
 
-const WEEKS = generateWeeks('2025-08-22', 8);
+const WEEKS = generateWeeks('2025-08-22', 12);
 let currentWeekIndex = 0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
@@ -148,7 +129,7 @@ function renderWeek(){
 
   let html = `<div class="card">
     <div class="card-header">
-      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
+      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric', year:'numeric'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
