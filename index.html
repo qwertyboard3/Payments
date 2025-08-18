@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pagos</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/pagos-icon-192.png">
+<meta name="theme-color" content="#7c5cff">
 <style>
 body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
 h1{text-align:center;margin:16px 0;}
 .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;}
+.card h2{display:flex;justify-content:center;gap:10px;font-size:22px;margin-bottom:10px;}
 .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
 .row:last-child{border-bottom:none;}
 .toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
@@ -38,7 +41,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebas
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
   authDomain: "budget-tracker-1eea7.firebaseapp.com",
@@ -54,7 +56,6 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Base payment pattern
 const BASE_WEEKS = [
   {amount:2017,bills:[
     {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
@@ -85,7 +86,6 @@ const BASE_WEEKS = [
   ]}
 ];
 
-// Generate weeks with repeating 7-day pattern
 function generateWeeks(startDate, numWeeks){
   const weeks=[];
   let date = new Date(startDate);
@@ -104,7 +104,7 @@ function generateWeeks(startDate, numWeeks){
   return weeks;
 }
 
-const WEEKS = generateWeeks('2025-08-22',12); // 12 future weeks
+const WEEKS = generateWeeks('2025-08-22',12);
 let currentWeekIndex = 0;
 
 function money(n){return '$'+Number(n).toLocaleString();}
@@ -173,7 +173,6 @@ document.getElementById('nextWeek').addEventListener('click',()=>{
   if(currentWeekIndex<WEEKS.length-1){ currentWeekIndex++; renderWeek(); }
 });
 
-// Firebase auth & load state
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
   if(user){
