@@ -3,23 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Firebase Debug Weekly Tracker</title>
+<title>4-Week Payment Tracker</title>
 <style>
-  body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:0; background:#f5f5f7; color:#1c1c1e; }
-  header { position: sticky; top:0; background:#fff; padding:1rem; border-bottom:1px solid #ccc; text-align:center; font-weight:bold; }
-  .week-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
-  .week-card { margin:1rem; padding:1rem; background:#fff; border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
-  .progress { height:6px; border-radius:3px; background:#eee; margin:0.5rem 0 1rem; overflow:hidden; }
-  .progress-bar { height:100%; background:#34c759; width:0%; transition:width 0.3s; }
-  .bill { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #eee; }
-  .bill:last-child { border-bottom:none; }
-  .ios-switch { position:relative; display:inline-block; width:52px; height:32px; }
-  .ios-switch input { display:none; }
-  .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; border-radius:32px; transition:.4s; }
-  .slider:before { position:absolute; content:""; height:24px; width:24px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s; }
-  input:checked + .slider { background:#34c759; }
-  input:checked + .slider:before { transform:translateX(20px); }
-  #debug { background:#222; color:#0f0; padding:1rem; font-family:monospace; overflow:auto; max-height:200px; }
+body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:0; background:#0f1115; color:#e6e8f0; }
+header { position: sticky; top:0; background:#171923; padding:1rem; border-bottom:1px solid #2a2f3a; text-align:center; font-weight:bold; }
+.week-nav { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:#171923; border-bottom:1px solid #2a2f3a; }
+.week-card { margin:1rem; padding:1rem; background:#171923; border-radius:16px; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
+.progress { height:8px; border-radius:8px; background:#242938; margin:0.5rem 0 1rem; overflow:hidden; border:1px solid #32384e; }
+.progress-bar { height:100%; background:linear-gradient(90deg,#7c5cff,#22d06e); width:0%; transition:width 0.3s; }
+.bill { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #2a2f3a; }
+.bill:last-child { border-bottom:none; }
+.ios-switch { position:relative; display:inline-block; width:52px; height:32px; }
+.ios-switch input { display:none; }
+.slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#252a36; border-radius:32px; transition:.4s; border:1px solid #394055; }
+.slider:before { position:absolute; content:""; height:24px; width:24px; left:4px; bottom:4px; background:white; border-radius:50%; transition:.4s; box-shadow:0 1px 2px rgba(0,0,0,.45); }
+input:checked + .slider { background:linear-gradient(90deg,#1db954,#22d06e); border-color:#179d4d; }
+input:checked + .slider:before { transform:translateX(20px); background:white; }
+#debug { background:#222; color:#0f0; padding:1rem; font-family:monospace; overflow:auto; max-height:200px; }
+button { background:#7c5cff; border:none; padding:0.5rem 1rem; border-radius:8px; color:#fff; cursor:pointer; }
+button:hover { background:#5a42c8; }
 </style>
 </head>
 <body>
@@ -34,22 +36,22 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ===== Replace with your Firebase config =====
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+  authDomain: "budget-tracker-1eea7.firebaseapp.com",
+  projectId: "budget-tracker-1eea7",
+  storageBucket: "budget-tracker-1eea7.appspot.com", // <- must be appspot.com
+  messagingSenderId: "579597071031",
+  appId: "1:579597071031:web:f30c2d42cc57268707d332"
 };
 // ============================================
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 const debugEl = document.getElementById("debug");
 function logDebug(msg){ debugEl.innerHTML += msg + "<br>"; debugEl.scrollTop = debugEl.scrollHeight; }
