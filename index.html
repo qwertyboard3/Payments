@@ -8,33 +8,37 @@
 <link rel="icon" type="image/png" href="icons/pagos-icon-192.png">
 <meta name="theme-color" content="#7c5cff">
 <style>
-body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
-h1{text-align:center;margin:16px 0;}
-.card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;}
-.card h2{display:flex;justify-content:center;gap:10px;font-size:22px;margin-bottom:10px;}
-.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
-.row:last-child{border-bottom:none;}
-.toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
-.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
-.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
-.toggle:checked::after{left:23px;background:white;}
-.progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
-.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
-button{background:#252a36;color:#e6e8f0;border:none;padding:10px 18px;margin:6px;border-radius:6px;cursor:pointer;font-size:16px;}
-button:disabled{opacity:0.5;cursor:default;}
-.summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
+  body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
+  h1{text-align:center;margin:16px 0;}
+  .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;min-height:300px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.3s ease-in-out;}
+  .card h2{text-align:center;margin-bottom:10px;font-size:22px;}
+  .card .income{font-size:18px;margin-top:5px;display:block;}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
+  .row:last-child{border-bottom:none;}
+  .row .bill-name{font-weight:bold;}
+  .toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
+  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
+  .toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
+  .toggle:checked::after{left:23px;background:white;}
+  .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
+  .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
+  .month-summary{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px;}
+  .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
+  .month-bill{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
+  .month-bill:last-child{border-bottom:none;}
+  .navigation-buttons{display:none;}
 </style>
 </head>
 <body>
 <h1>Pagos</h1>
 <section id="weekContainer"></section>
-
-<div style="text-align:center;margin-top:10px;">
+<div class="navigation-buttons">
   <button id="prevWeek">Previous</button>
   <button id="nextWeek">Next</button>
 </div>
-
 <div class="summary" id="allSummary"></div>
+<div class="month-summary" id="monthSummary"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
@@ -94,8 +98,7 @@ function generateWeeks(startDate, numWeeks){
     const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
       const due = new Date(b.due);
       due.setDate(due.getDate()+7*i);
-      const dueStr = due.toISOString().slice(0,10);
-      return {...b,due:dueStr};
+      return {...b,due:due.toISOString().slice(0,10)};
     })};
     w.date = date.toISOString().slice(0,10);
     weeks.push(w);
@@ -122,24 +125,31 @@ function renderWeek(){
   const pct = Math.round((totalPaid/pc.amount)*100);
 
   let html = `<div class="card">
-    <h2>${pc.date} | Income: ${money(pc.amount)}</h2>`;
+    <div class="card-header">
+      <h2>${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})} - ${new Date(new Date(pc.date).setDate(new Date(pc.date).getDate()+6)).toLocaleDateString('en-US',{month:'long',day:'numeric'})}
+      <span class="income">Income: ${money(pc.amount)}</span></h2>
+    </div>
+    <div class="bill-list">`;
   pc.bills.forEach(b=>{
     const toggleId = `${b.id}_${pc.date}`;
     const checked = state[toggleId]?'checked':'';
+    const dueDate = new Date(b.due);
+    const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
     html+=`<div class="row">
-      <span>${b.name} (Due: ${b.due}) - ${money(b.amt)}</span>
+      <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
       <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
     </div>`;
   });
-  html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
-    <div class="progress"><i style="width:${pct}%"></i></div>
+  html+=`</div>
+    <div class="card-footer">
+      <p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
+      <div class="progress"><i style="width:${pct}%"></i></div>
+    </div>
   </div>`;
   container.innerHTML = html;
-
-  document.getElementById('prevWeek').disabled = currentWeekIndex===0;
-  document.getElementById('nextWeek').disabled = currentWeekIndex===WEEKS.length-1;
-
+  
   renderAllSummary();
+  renderMonthSummary();
 }
 
 function renderAllSummary(){
@@ -156,6 +166,40 @@ function renderAllSummary(){
   container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
 }
 
+function renderMonthSummary(){
+  const container = document.getElementById('monthSummary');
+  const month = new Date(WEEKS[currentWeekIndex].date).getMonth();
+  const billsInMonth = WEEKS.filter(w => new Date(w.date).getMonth() === month)
+                          .flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})));
+
+  const groupedBills = {};
+  billsInMonth.forEach(b => {
+      if (!groupedBills[b.name]) {
+          groupedBills[b.name] = { totalAmount: 0, paidAmount: 0, count: 0 };
+      }
+      groupedBills[b.name].totalAmount += b.amt;
+      groupedBills[b.name].count++;
+      const toggleId = `${b.id}_${b.weekDate}`;
+      if (state[toggleId]) {
+          groupedBills[b.name].paidAmount += b.amt;
+      }
+  });
+
+  let html = `<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US', {month:'long'})} Bills</h3>`;
+  
+  const sortedBillNames = Object.keys(groupedBills).sort();
+  
+  sortedBillNames.forEach(billName => {
+      const billData = groupedBills[billName];
+      html += `<div class="month-bill">
+                  <span><strong>${billName}</strong></span>
+                  <span>${money(billData.paidAmount)} / ${money(billData.totalAmount)}</span>
+              </div>`;
+  });
+  
+  container.innerHTML = html;
+}
+
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
     const id = e.target.dataset.id;
@@ -166,12 +210,57 @@ document.addEventListener('change', async e=>{
   }
 });
 
-document.getElementById('prevWeek').addEventListener('click',()=>{
-  if(currentWeekIndex>0){ currentWeekIndex--; renderWeek(); }
+let touchstartX = 0;
+let touchendX = 0;
+const weekContainer = document.getElementById('weekContainer');
+
+function handleGesture() {
+  if (touchendX < touchstartX - 50) {
+    if (currentWeekIndex < WEEKS.length - 1) {
+      currentWeekIndex++;
+      renderWeek();
+    }
+  }
+  if (touchendX > touchstartX + 50) {
+    if (currentWeekIndex > 0) {
+      currentWeekIndex--;
+      renderWeek();
+    }
+  }
+}
+
+weekContainer.addEventListener('touchstart', e => {
+  touchstartX = e.changedTouches[0].screenX;
 });
-document.getElementById('nextWeek').addEventListener('click',()=>{
-  if(currentWeekIndex<WEEKS.length-1){ currentWeekIndex++; renderWeek(); }
+
+weekContainer.addEventListener('touchend', e => {
+  touchendX = e.changedTouches[0].screenX;
+  handleGesture();
 });
+
+// Pull to refresh logic for PWA
+let startY = 0;
+let endY = 0;
+const PULL_THRESHOLD = 80; // Distance to pull down to trigger a refresh
+
+document.addEventListener('touchstart', e => {
+    startY = e.touches[0].pageY;
+});
+
+document.addEventListener('touchmove', e => {
+    endY = e.touches[0].pageY;
+    if (window.scrollY === 0 && endY > startY) {
+        document.body.style.transform = `translateY(${endY - startY}px)`;
+    }
+});
+
+document.addEventListener('touchend', e => {
+    if (window.scrollY === 0 && (endY - startY) > PULL_THRESHOLD) {
+        window.location.reload();
+    }
+    document.body.style.transform = `translateY(0)`;
+});
+
 
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth, async user=>{
