@@ -23,12 +23,12 @@
   .progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
   .progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
   .summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
-  .month-summary{margin-top:10px;padding:12px;background:#171923;border-radius:10px;font-size:16px; transition: background-color 0.5s ease;}
+  .month-summary{margin-top:10px;padding:12px;border-radius:10px;font-size:16px; transition: background-color 0.5s ease;}
   .month-summary.all-paid{background-color: #179d4d; color: white;}
-  .month-summary.all-paid .bill-item{border-color: #22d06e;}
   .month-summary h3{margin-top:0;font-size:18px;text-align:center;}
   .bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
   .bill-item:last-child{border-bottom:none;}
+  .bill-item .paid-amount{color: #1db954;}
   .navigation-buttons{display:none;}
 </style>
 </head>
@@ -63,32 +63,32 @@ const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
 const BASE_WEEKS = [
-  {amount:2017,bills:[
-    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-    {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
-    {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
-    {id:'fridge',name:'Fridge',amt:60,due:'10/01/2025'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'10/01/2025'},
-    {id:'vegas',name:'Vegas',amt:51,due:'10/01/2025'},
-    {id:'amazon',name:'Amazon',amt:50,due:'10/08/2025'}
+  {amount:451, bills:[
+    {id:'rogue',name:'Rogue',amt:700,due:'09/03/2025'},
+    {id:'city',name:'City of Phoenix',amt:60,due:'09/04/2025'},
+    {id:'amazon',name:'Amazon prime',amt:50,due:'09/08/2025'},
+    {id:'capitalone',name:'Capital One',amt:189,due:'09/10/2025'},
   ]},
-  {amount:650,bills:[
+  {amount:109,bills:[
+    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'09/11/2025'},
+    {id:'centurylink',name:'Century Link',amt:70,due:'09/13/2025'},
+    {id:'walmart',name:'Walmart',amt:75,due:'09/17/2025'}
+  ]},
+  {amount:658,bills:[
+    {id:'progressive',name:'Progressive',amt:300,due:'09/15/2025'},
+    {id:'tmobile',name:'T-Mobile',amt:368,due:'09/15/2025'},
+    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'09/15/2025'},
+    {id:'frontier',name:'Frontier',amt:65,due:'09/15/2025'}
+  ]},
+  {amount:1486,bills:[
+    {id:'chase',name:'Chase',amt:125,due:'09/15/2025'},
     {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
-    {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
-    {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'}
-  ]},
-  {amount:2017,bills:[
-    {id:'house',name:'House Payment',amt:950,due:'11/01/2025'},
-    {id:'qs3064',name:'QS 3064',amt:100,due:'10/11/2025'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
-    {id:'hoa',name:'HOA',amt:160,due:'10/01/2025'}
-  ]},
-  {amount:650,bills:[
-    {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
-    {id:'qs5989',name:'QS 5989',amt:100,due:'10/15/2025'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'10/10/2025'}
+    {id:'fridge',name:'Fridge',amt:60,due:'09/01/2025'},
+    {id:'penasco',name:'Peñasco',amt:45,due:'09/01/2025'},
+    {id:'vegas',name:'Vegas',amt:51,due:'09/01/2025'},
+    {id:'hoa',name:'HOA',amt:160,due:'09/01/2025'},
+    {id:'house',name:'House payment',amt:950,due:'10/01/2025'},
+    {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
   ]}
 ];
 
@@ -99,8 +99,10 @@ function generateWeeks(startDate, numWeeks){
     const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
     const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
       const due = new Date(b.due);
-      due.setDate(due.getDate()+7*i);
-      return {...b,due:due.toISOString().slice(0,10)};
+      // Adjust due dates based on week index
+      const newDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      newDue.setDate(newDue.getDate() + 7 * Math.floor(i / BASE_WEEKS.length) * BASE_WEEKS.length);
+      return {...b, due: newDue.toISOString().slice(0,10)};
     })};
     w.date = date.toISOString().slice(0,10);
     weeks.push(w);
@@ -108,6 +110,7 @@ function generateWeeks(startDate, numWeeks){
   }
   return weeks;
 }
+
 
 const WEEKS = generateWeeks('2025-08-22',12);
 let currentWeekIndex = 0;
@@ -173,34 +176,45 @@ function renderMonthSummary(){
   const month = new Date(WEEKS[currentWeekIndex].date).getMonth();
   const year = new Date(WEEKS[currentWeekIndex].date).getFullYear();
 
-  const billsInMonth = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})))
-                           .filter(b => {
-                               const dueDate = new Date(b.due);
-                               return dueDate.getMonth() === month && dueDate.getFullYear() === year;
-                           });
+  const allBills = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekDate: w.date})));
+  
+  // Group bills by due date to avoid duplicates
+  const groupedBills = {};
+  allBills.forEach(b => {
+      const dueMonth = new Date(b.due).getMonth();
+      const dueYear = new Date(b.due).getFullYear();
+      if(dueMonth === month && dueYear === year) {
+          const key = `${b.name}-${b.due}`;
+          if (!groupedBills[key]) {
+              groupedBills[key] = {...b, isPaid: false};
+          }
+          const toggleId = `${b.id}_${b.weekDate}`;
+          if (state[toggleId]) {
+              groupedBills[key].isPaid = true;
+          }
+      }
+  });
 
-  let totalPlannedForMonth = 0;
+  const billsForDisplay = Object.values(groupedBills);
+
   let totalPaidForMonth = 0;
+  let totalPlannedForMonth = 0;
 
   let html = `<h3>${new Date(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US', {month:'long'})} Bills</h3>`;
   
-  // Sort bills by due date
-  billsInMonth.sort((a,b) => new Date(a.due) - new Date(b.due));
+  billsForDisplay.sort((a,b) => new Date(a.due) - new Date(b.due));
 
-  if (billsInMonth.length > 0) {
-    billsInMonth.forEach(b => {
-      const toggleId = `${b.id}_${b.weekDate}`;
-      const isPaid = state[toggleId];
-      totalPlannedForMonth += b.amt;
-      if (isPaid) {
-          totalPaidForMonth += b.amt;
-      }
-      const dueDate = new Date(b.due);
-      const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
-      html += `<div class="bill-item">
-                  <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
-                  <span>${money(b.amt)}</span>
-              </div>`;
+  if (billsForDisplay.length > 0) {
+    billsForDisplay.forEach(b => {
+        totalPlannedForMonth += b.amt;
+        if(b.isPaid) totalPaidForMonth += b.amt;
+        const dueDate = new Date(b.due);
+        const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+        const paidClass = b.isPaid ? 'paid-amount' : '';
+        html += `<div class="bill-item">
+                    <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
+                    <span class="${paidClass}">${money(b.amt)}</span>
+                </div>`;
     });
   } else {
     html += `<p style="text-align: center;">No bills due this month.</p>`;
@@ -209,9 +223,11 @@ function renderMonthSummary(){
   container.innerHTML = html;
 
   if (totalPaidForMonth === totalPlannedForMonth && totalPlannedForMonth > 0) {
-      container.classList.add('all-paid');
+      container.style.backgroundColor = '#179d4d';
+      container.style.color = 'white';
   } else {
-      container.classList.remove('all-paid');
+      container.style.backgroundColor = '#171923';
+      container.style.color = '#e6e8f0';
   }
 }
 
@@ -257,7 +273,7 @@ weekContainer.addEventListener('touchend', e => {
 // Pull to refresh logic for PWA
 let startY = 0;
 let endY = 0;
-const PULL_THRESHOLD = 80; // Distance to pull down to trigger a refresh
+const PULL_THRESHOLD = 80;
 
 document.addEventListener('touchstart', e => {
     startY = e.touches[0].pageY;
