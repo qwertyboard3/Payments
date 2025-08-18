@@ -90,7 +90,10 @@ const BASE_WEEKS = [
 
 function generateWeeks(startDate, numWeeks){
   const weeks=[];
-  let date = new Date(startDate);
+  // Fixes time zone issue by creating the date in local time
+  let parts = startDate.split('-');
+  let date = new Date(parts[0], parts[1] - 1, parts[2]);
+
   for(let i=0;i<numWeeks;i++){
     const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
     const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
