@@ -33,7 +33,7 @@
 </style>
 </head>
 <body>
-<h1>Pagos V1.0</h1>
+<h1>Pagos V2.0</h1>
 <section id="weekContainer"></section>
 <div class="navigation-buttons">
   <button id="prevWeek">Previous</button>
@@ -126,9 +126,12 @@ function renderWeek(){
   const remaining = pc.amount - totalPaid;
   const pct = Math.round((totalPaid/pc.amount)*100);
 
+  // This is the updated line to correctly display the date
+  let formattedPayDate = new Date(pc.date + 'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric', year:'numeric'});
+
   let html = `<div class="card">
     <div class="card-header">
-      <h2>Pay Date: ${new Date(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric', year:'numeric'})}
+      <h2>Pay Date: ${formattedPayDate}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
