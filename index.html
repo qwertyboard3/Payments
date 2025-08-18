@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,8 @@
 
 <style>
 body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
-h1,h2{margin:8px 0;}
+h1{text-align:center;margin:16px 0;}
+h2{margin:8px 0;}
 .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;}
 .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
 .row:last-child{border-bottom:none;}
@@ -30,8 +31,8 @@ button:disabled{opacity:0.5;cursor:default;}
 <section id="weekContainer"></section>
 
 <div style="text-align:center;margin-top:10px;">
-  <button id="prevWeek">Anterior</button>
-  <button id="nextWeek">Siguiente</button>
+  <button id="prevWeek">Previous</button>
+  <button id="nextWeek">Next</button>
 </div>
 
 <div class="summary" id="allSummary"></div>
@@ -57,36 +58,52 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Weeks data
-const WEEKS = [
-  {date:'2025-08-22', amount:2017, bills:[
+// Base weeks (first 4 weeks) + bills
+const BASE_WEEKS = [
+  {amount:2017,bills:[
     {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
-    {id:'progressive',name:'Progresive',amt:300,due:'10/15/2025'},
+    {id:'progressive',name:'Progressive',amt:300,due:'10/15/2025'},
     {id:'rogue',name:'Rogue',amt:700,due:'10/03/2025'},
     {id:'fridge',name:'Fridge',amt:60,due:'10/01/2025'},
     {id:'penasco',name:'Peñasco',amt:45,due:'10/01/2025'},
     {id:'vegas',name:'Vegas',amt:51,due:'10/01/2025'},
     {id:'amazon',name:'Amazon',amt:50,due:'10/08/2025'}
   ]},
-  {date:'2025-08-29', amount:650, bills:[
+  {amount:650,bills:[
     {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'09/15/2025'},
     {id:'city',name:'City of Phoenix',amt:60,due:'10/04/2025'},
     {id:'chase',name:'Chase',amt:125,due:'10/15/2025'},
     {id:'frontier',name:'Frontier',amt:65,due:'10/15/2025'}
   ]},
-  {date:'2025-09-05', amount:2017, bills:[
+  {amount:2017,bills:[
     {id:'house',name:'House Payment',amt:950,due:'11/01/2025'},
     {id:'qs3064',name:'QS 3064',amt:100,due:'10/11/2025'},
     {id:'centurylink',name:'Century Link',amt:70,due:'10/13/2025'},
     {id:'tmobile',name:'T-Mobile',amt:368,due:'10/15/2025'},
     {id:'hoa',name:'HOA',amt:160,due:'10/01/2025'}
   ]},
-  {date:'2025-09-12', amount:650, bills:[
+  {amount:650,bills:[
     {id:'walmart',name:'Walmart',amt:75,due:'10/17/2025'},
     {id:'qs5989',name:'QS 5989',amt:100,due:'10/15/2025'},
     {id:'capitalone',name:'Capital One',amt:189,due:'10/10/2025'}
   ]}
 ];
+
+// Generate weeks with dates (every 7 days)
+function generateWeeks(startDate, numWeeks){
+  const weeks=[];
+  let date = new Date(startDate);
+  for(let i=0;i<numWeeks;i++){
+    const w = BASE_WEEKS[i] ? JSON.parse(JSON.stringify(BASE_WEEKS[i])) : {amount:0,bills:[]};
+    w.date = date.toISOString().slice(0,10);
+    weeks.push(w);
+    date.setDate(date.getDate()+7);
+  }
+  return weeks;
+}
+
+// Automatically generate 8 weeks total
+const WEEKS = generateWeeks('2025-08-22',8);
 
 let currentWeekIndex = 0;
 function money(n){return '$'+Number(n).toLocaleString();}
@@ -101,15 +118,15 @@ function renderWeek(){
   const pct = Math.round((totalPaid/pc.amount)*100);
 
   let html = `<div class="card">
-    <h2>Semana ${currentWeekIndex+1} - ${pc.date} | Ingreso: ${money(pc.amount)}</h2>`;
+    <h2>Week ${currentWeekIndex+1} - ${pc.date} | Income: ${money(pc.amount)}</h2>`;
   pc.bills.forEach(b=>{
     const checked = state[b.id]?'checked':'';
     html+=`<div class="row">
-      <span>${b.name} (Vence: ${b.due}) - ${money(b.amt)}</span>
+      <span>${b.name} (Due: ${b.due}) - ${money(b.amt)}</span>
       <input type="checkbox" class="toggle" data-id="${b.id}" ${checked}>
     </div>`;
   });
-  html+=`<p>Pagado: ${money(totalPaid)} | Restante: ${money(remaining)}</p>
+  html+=`<p>Paid: ${money(totalPaid)} | Remaining: ${money(remaining)}</p>
     <div class="progress"><i style="width:${pct}%"></i></div>
   </div>`;
   container.innerHTML = html;
@@ -130,7 +147,7 @@ function renderAllSummary(){
     });
   });
   const remaining = planned - paid;
-  container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Pagado:</strong> ${money(paid)} | <strong>Restante:</strong> ${money(remaining)}`;
+  container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
 }
 
 document.addEventListener('change', async e=>{
@@ -138,7 +155,7 @@ document.addEventListener('change', async e=>{
     const id = e.target.dataset.id;
     state[id] = e.target.checked;
     try{ await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true}); }
-    catch(err){ console.warn("Error guardando:",err); }
+    catch(err){ console.warn("Error saving:",err); }
     renderWeek();
   }
 });
@@ -157,7 +174,7 @@ onAuthStateChanged(auth, async user=>{
     try{
       const snap = await getDoc(TOGGLE_DOC);
       state = snap.exists()?snap.data():{};
-    }catch(e){ console.warn("Error leyendo Firestore:",e); }
+    }catch(e){ console.warn("Error reading Firestore:",e); }
     // Auto-select current week
     const today = new Date();
     WEEKS.forEach((w,i)=>{
@@ -171,7 +188,6 @@ onAuthStateChanged(auth, async user=>{
 });
 </script>
 
-<!-- Service Worker for PWA -->
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
