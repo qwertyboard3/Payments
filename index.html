@@ -4,14 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pagos</title>
-
-<!-- PWA manifest -->
 <link rel="manifest" href="manifest.json">
-
 <style>
 body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
 h1{text-align:center;margin:16px 0;}
-h2{margin:8px 0;}
 .card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;}
 .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
 .row:last-child{border-bottom:none;}
@@ -58,7 +54,7 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Base weeks (first 4 weeks) + bills
+// Base payment pattern
 const BASE_WEEKS = [
   {amount:2017,bills:[
     {id:'kicks',name:'Kicks',amt:472,due:'10/01/2025'},
@@ -89,12 +85,19 @@ const BASE_WEEKS = [
   ]}
 ];
 
-// Generate weeks with dates (every 7 days)
+// Generate weeks with repeating 7-day pattern
 function generateWeeks(startDate, numWeeks){
   const weeks=[];
   let date = new Date(startDate);
   for(let i=0;i<numWeeks;i++){
-    const w = BASE_WEEKS[i] ? JSON.parse(JSON.stringify(BASE_WEEKS[i])) : {amount:0,bills:[]};
+    const pattern = BASE_WEEKS[i%BASE_WEEKS.length];
+    const w = {amount:pattern.amount,bills:pattern.bills.map(b=>{
+      // clone and update due date
+      const due = new Date(b.due);
+      due.setDate(due.getDate()+7*i);
+      const dueStr = due.toISOString().slice(0,10);
+      return {...b,due:dueStr};
+    })};
     w.date = date.toISOString().slice(0,10);
     weeks.push(w);
     date.setDate(date.getDate()+7);
@@ -102,10 +105,9 @@ function generateWeeks(startDate, numWeeks){
   return weeks;
 }
 
-// Automatically generate 8 weeks total
-const WEEKS = generateWeeks('2025-08-22',8);
-
+const WEEKS = generateWeeks('2025-08-22',12); // 12 future weeks
 let currentWeekIndex = 0;
+
 function money(n){return '$'+Number(n).toLocaleString();}
 
 function renderWeek(){
@@ -118,7 +120,7 @@ function renderWeek(){
   const pct = Math.round((totalPaid/pc.amount)*100);
 
   let html = `<div class="card">
-    <h2>Week ${currentWeekIndex+1} - ${pc.date} | Income: ${money(pc.amount)}</h2>`;
+    <h2>${pc.date} | Income: ${money(pc.amount)}</h2>`;
   pc.bills.forEach(b=>{
     const checked = state[b.id]?'checked':'';
     html+=`<div class="row">
@@ -187,7 +189,6 @@ onAuthStateChanged(auth, async user=>{
   }
 });
 </script>
-
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(()=>console.log('Service Worker registered'));
