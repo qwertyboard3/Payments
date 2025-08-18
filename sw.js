@@ -1,9 +1,10 @@
-const CACHE_NAME = 'pagos-v1';
+const CACHE_NAME = 'pagos-v1'; // versioned cache
 const FILES_TO_CACHE = [
-  '/',
+  '/index.html',
   '/manifest.json'
 ];
 
+// Install: cache files individually to avoid addAll failures
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
@@ -17,6 +18,7 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
+// Activate: remove old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -28,6 +30,7 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Fetch: respond with cache first, fallback to network
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(resp => resp || fetch(event.request))
