@@ -62,7 +62,13 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// --- FIRST 4 WEEKS WITH YOUR DATES ---
+// --- HELPER FOR ARIZONA TIME ---
+function parseAZDate(str){
+  const [y,m,d]=str.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,d,7,0,0)); // AZ UTC-7
+}
+
+// --- FIRST 4 WEEKS ---
 const BASE_WEEKS = [
   { amount: 2017, bills: [
     {id:'rogue', name:'Rogue', amt:700, due:'2025-09-03'},
@@ -94,34 +100,40 @@ const BASE_WEEKS = [
 ];
 
 function money(n){return '$'+Number(n).toLocaleString();}
-
 let currentWeekIndex = 0;
 const WEEKS = BASE_WEEKS;
 
 // --- RENDER FUNCTIONS ---
 function renderWeek(){
-  const container = document.getElementById('weekContainer');
+  const container=document.getElementById('weekContainer');
   container.innerHTML='';
-  const pc = WEEKS[currentWeekIndex];
+  const pc=WEEKS[currentWeekIndex];
   let totalPaid=0;
   pc.bills.forEach(b=>{
-    const toggleId = `${b.id}_${b.due}`;
+    const toggleId=`${b.id}_${b.due}`;
     if(state[toggleId]) totalPaid+=b.amt;
   });
-  const remaining = pc.amount - totalPaid;
-  const pct = Math.round((totalPaid/pc.amount)*100);
+  const remaining=pc.amount-totalPaid;
+  const pct=Math.round((totalPaid/pc.amount)*100);
 
-  let html = `<div class="card">
+  // Earliest due date as Pay Date
+  const earliestDue=pc.bills.reduce((earliest,b)=>{
+    const d=parseAZDate(b.due);
+    return (!earliest||d<earliest)?d:earliest;
+  }, null);
+  const formattedPayDate=earliestDue.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  let html=`<div class="card">
     <div class="card-header">
-      <h2>Week ${currentWeekIndex+1}
+      <h2>Pay Date: ${formattedPayDate}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
   pc.bills.forEach(b=>{
-    const toggleId = `${b.id}_${b.due}`;
-    const checked = state[toggleId]?'checked':'';
-    const dueDate = new Date(b.due);
-    const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+    const toggleId=`${b.id}_${b.due}`;
+    const checked=state[toggleId]?'checked':'';
+    const dueDate=parseAZDate(b.due);
+    const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
     html+=`<div class="row">
       <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
       <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
@@ -133,63 +145,61 @@ function renderWeek(){
       <div class="progress"><i style="width:${pct}%"></i></div>
     </div>
   </div>`;
-  container.innerHTML = html;
+  container.innerHTML=html;
   
   renderAllSummary();
   renderMonthSummary();
 }
 
 function renderAllSummary(){
-  const container = document.getElementById('allSummary');
+  const container=document.getElementById('allSummary');
   let planned=0, paid=0;
   WEEKS.forEach(w=>{
     w.bills.forEach(b=>{
       planned+=b.amt;
-      const toggleId = `${b.id}_${b.due}`;
+      const toggleId=`${b.id}_${b.due}`;
       if(state[toggleId]) paid+=b.amt;
     });
   });
-  const remaining = planned - paid;
-  container.innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
+  container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
 function renderMonthSummary(){
-  const container = document.getElementById('monthSummary');
-  const month = new Date(WEEKS[currentWeekIndex].bills[0].due).getMonth();
-  const year = new Date(WEEKS[currentWeekIndex].bills[0].due).getFullYear();
+  const container=document.getElementById('monthSummary');
+  const month=parseAZDate(WEEKS[currentWeekIndex].bills[0].due).getMonth();
+  const year=parseAZDate(WEEKS[currentWeekIndex].bills[0].due).getFullYear();
 
-  const allBills = WEEKS.flatMap(w => w.bills.map(b => ({...b, weekIndex: WEEKS.indexOf(w)})));
-  
-  const groupedBills = {};
-  allBills.forEach(b => {
-      const dueMonth = new Date(b.due).getMonth();
-      const dueYear = new Date(b.due).getFullYear();
-      if(dueMonth === month && dueYear === year) {
-          const key = `${b.name}-${b.due}`;
-          if (!groupedBills[key]) groupedBills[key] = {...b, isPaid:false};
-          const toggleId = `${b.id}_${b.due}`;
-          if(state[toggleId]) groupedBills[key].isPaid=true;
-      }
+  const allBills=WEEKS.flatMap(w=>w.bills.map(b=>({...b, weekIndex:WEEKS.indexOf(w)})));
+  const groupedBills={};
+  allBills.forEach(b=>{
+    const dueMonth=parseAZDate(b.due).getMonth();
+    const dueYear=parseAZDate(b.due).getFullYear();
+    if(dueMonth===month && dueYear===year){
+      const key=`${b.name}-${b.due}`;
+      if(!groupedBills[key]) groupedBills[key]={...b,isPaid:false};
+      const toggleId=`${b.id}_${b.due}`;
+      if(state[toggleId]) groupedBills[key].isPaid=true;
+    }
   });
 
-  const billsForDisplay = Object.values(groupedBills);
-  let html = `<h3>${new Date(WEEKS[currentWeekIndex].bills[0].due).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
+  const billsForDisplay=Object.values(groupedBills);
+  let html=`<h3>${new Date(WEEKS[currentWeekIndex].bills[0].due).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
   let totalPaidForMonth=0, totalPlannedForMonth=0;
 
-  billsForDisplay.sort((a,b)=> new Date(a.due)-new Date(b.due));
+  billsForDisplay.sort((a,b)=>parseAZDate(a.due)-parseAZDate(b.due));
   billsForDisplay.forEach(b=>{
     totalPlannedForMonth+=b.amt;
     if(b.isPaid) totalPaidForMonth+=b.amt;
-    const dueDate = new Date(b.due);
-    const formattedDue = `${dueDate.getMonth()+1}/${dueDate.getDate()}`;
-    const paidClass = b.isPaid?'paid-amount':'';
+    const dueDate=parseAZDate(b.due);
+    const formattedDue=`${dueDate.getMonth()+1}/${dueDate.getDate()}`;
+    const paidClass=b.isPaid?'paid-amount':'';
     html+=`<div class="bill-item">
       <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
       <span class="${paidClass}">${money(b.amt)}</span>
     </div>`;
   });
 
-  container.innerHTML = html;
+  container.innerHTML=html;
   if(totalPaidForMonth===totalPlannedForMonth && totalPlannedForMonth>0){
     container.style.backgroundColor='#179d4d';
     container.style.color='white';
@@ -202,10 +212,10 @@ function renderMonthSummary(){
 // --- TOGGLE HANDLER ---
 document.addEventListener('change', async e=>{
   if(e.target.matches('.toggle')){
-    const id = e.target.dataset.id;
-    state[id] = e.target.checked;
-    try{ await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true}); }
-    catch(err){ console.warn("Error saving:",err); }
+    const id=e.target.dataset.id;
+    state[id]=e.target.checked;
+    try{await setDoc(TOGGLE_DOC,{[id]:state[id]},{merge:true});}
+    catch(err){console.warn("Error saving:",err);}
     renderWeek();
   }
 });
@@ -213,7 +223,6 @@ document.addEventListener('change', async e=>{
 // --- SWIPE & PULL-TO-REFRESH ---
 let touchStartX=0, touchStartY=0, touchEndX=0, touchEndY=0;
 const SWIPE_THRESHOLD=50;
-
 const weekContainer=document.getElementById('weekContainer');
 
 weekContainer.addEventListener('touchstart', e=>{
@@ -234,11 +243,18 @@ weekContainer.addEventListener('touchmove', e=>{
 weekContainer.addEventListener('touchend', e=>{
   const deltaX=touchEndX-touchStartX;
   const deltaY=touchEndY-touchStartY;
+
+  // Horizontal swipe only if deltaX bigger than deltaY
   if(Math.abs(deltaX)>Math.abs(deltaY) && Math.abs(deltaX)>SWIPE_THRESHOLD){
     if(deltaX<0 && currentWeekIndex<WEEKS.length-1) currentWeekIndex++;
     if(deltaX>0 && currentWeekIndex>0) currentWeekIndex--;
     renderWeek();
   }
+
+  // Reset touch coordinates
+  touchStartX=touchStartY=touchEndX=touchEndY=0;
+
+  // Pull-to-refresh
   if(window.scrollY===0 && deltaY>80) window.location.reload();
   document.body.style.transform='translateY(0)';
 },{passive:false});
@@ -249,7 +265,7 @@ onAuthStateChanged(auth, async user=>{
   if(user){
     try{
       const snap=await getDoc(TOGGLE_DOC);
-      state = snap.exists()?snap.data():{};
+      state=snap.exists()?snap.data():{};
     } catch(e){console.warn("Error reading Firestore:",e);}
     renderWeek();
   }
