@@ -62,96 +62,84 @@ const auth = getAuth(app);
 const TOGGLE_DOC = doc(db,"toggles","weeklyState");
 let state = {};
 
-// Base weeks
-const BASE_WEEKS = [
-  { amount: 2017, bills: [
-    {id:'kicks',name:'Kicks',amt:472,due:'2025-10-01'},
-    {id:'progressive',name:'Progressive',amt:300,due:'2025-09-15'},
-    {id:'rogue',name:'Rogue',amt:700,due:'2025-09-03'},
-    {id:'fridge',name:'Fridge',amt:60,due:'2025-09-01'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'2025-09-01'},
-    {id:'vegas',name:'Vegas',amt:51,due:'2025-09-01'},
-    {id:'amazon',name:'Amazon',amt:50,due:'2025-09-08'}
-  ]},
-  { amount: 2017, bills: [
-    {id:'hoa',name:'HOA',amt:160,due:'2025-09-01'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'2025-09-04'},
-    {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'2025-09-11'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-13'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'2025-09-10'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-15'},
-    {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'2025-09-15'},
-    {id:'frontier',name:'Frontier',amt:65,due:'2025-09-15'},
-    {id:'chase',name:'Chase',amt:125,due:'2025-09-15'},
-    {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'2025-09-15'},
-    {id:'walmart',name:'Walmart',amt:75,due:'2025-09-17'},
-    {id:'house',name:'House payment',amt:950,due:'2025-10-01'}
-  ]}
-];
-
-// Parse dates as Arizona calendar dates (no timezone shift)
+// Helper: parse date in Arizona timezone
 function parseDateAZ(dateStr){
-  const [y,m,d]=dateStr.split('-').map(Number);
+  const [y,m,d] = dateStr.split('-').map(Number);
   return new Date(y,m-1,d);
 }
 
-// Generate weeks
-function generateWeeks(startDate,numWeeks){
+// 4-week base cycle bills
+const BASE_CYCLE = [
+  {id:'city',name:'City of Phoenix',amt:60,due:'2025-09-04'},
+  {id:'qs3064',name:'Quicksilver 3064',amt:100,due:'2025-09-11'},
+  {id:'progressive',name:'Progressive',amt:300,due:'2025-09-15'},
+  {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-13'},
+  {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-15'},
+  {id:'house',name:'House payment',amt:950,due:'2025-09-30'},
+  {id:'rogue',name:'Rogue',amt:700,due:'2025-09-03'},
+  {id:'hoa',name:'HOA',amt:160,due:'2025-09-01'},
+  {id:'kicks',name:'Kicks',amt:472,due:'2025-09-30'},
+  {id:'amazon',name:'Amazon prime',amt:50,due:'2025-09-08'},
+  {id:'walmart',name:'Walmart',amt:75,due:'2025-09-17'},
+  {id:'qs5989',name:'Quicksilver 5989',amt:100,due:'2025-09-15'},
+  {id:'capitalone',name:'Capital one',amt:189,due:'2025-09-10'},
+  {id:'frontier',name:'Frontier',amt:65,due:'2025-09-15'},
+  {id:'chase',name:'Chase',amt:125,due:'2025-09-15'},
+  {id:'hawaiian',name:'Hawaiian Airlines',amt:65,due:'2025-09-15'},
+  {id:'fridge',name:'Fridge',amt:60,due:'2025-09-01'},
+  {id:'penasco',name:'Peñasco',amt:45,due:'2025-09-01'},
+  {id:'vegas',name:'Vegas',amt:51,due:'2025-09-01'}
+];
+
+// Generate weeks in 4-week cycles
+function generateWeeksAZ(startDate,numWeeks){
   const weeks=[];
-  let date=parseDateAZ(startDate);
+  let start=parseDateAZ(startDate);
+  const cycleLength=4; // 4 weeks per cycle
+
   for(let i=0;i<numWeeks;i++){
-    const pattern=BASE_WEEKS[i%BASE_WEEKS.length];
-    const cycleOffset=Math.floor(i/BASE_WEEKS.length);
-
-    const w={
-      amount: pattern.amount,
-      bills: pattern.bills.map(b=>{
-        const baseDue=parseDateAZ(b.due);
-        const newDue=new Date(baseDue);
-        newDue.setMonth(baseDue.getMonth()+cycleOffset);
-        return {...b,due:newDue.toISOString().slice(0,10)};
-      })
-    };
-
-    w.date=date.toISOString().slice(0,10);
-    weeks.push(w);
-    date.setDate(date.getDate()+7);
+    const cycleOffset=Math.floor(i/cycleLength); // month offset
+    const weekBills=BASE_CYCLE.map(b=>{
+      const baseDue=parseDateAZ(b.due);
+      const newDue=new Date(baseDue);
+      newDue.setMonth(baseDue.getMonth()+cycleOffset);
+      return {...b,due:newDue.toISOString().slice(0,10)};
+    });
+    weeks.push({date:start.toISOString().slice(0,10),amount:4005,bills:weekBills});
+    start.setDate(start.getDate()+7);
   }
   return weeks;
 }
 
-const WEEKS=generateWeeks('2025-08-22',12);
-let currentWeekIndex=0;
-
+// Example: 12 weeks
+const WEEKS = generateWeeksAZ('2025-08-22',12);
+let currentWeekIndex = 0;
 function money(n){return '$'+Number(n).toLocaleString();}
 
-// Render one week with progress bar per paydate
+// Render weekly card
 function renderWeek(){
   const container=document.getElementById('weekContainer');
   container.innerHTML='';
   const pc=WEEKS[currentWeekIndex];
   let totalPaid=0;
-
   pc.bills.forEach(b=>{
     const toggleId=`${b.id}_${b.due}`;
     if(state[toggleId]) totalPaid+=b.amt;
   });
-
   const remaining=pc.amount-totalPaid;
   const pct=pc.amount?Math.round((totalPaid/pc.amount)*100):0;
 
   let html=`<div class="card">
     <div class="card-header">
-      <h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric',timeZone:'America/Phoenix'})}
+      <h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
       <span class="income">Income: ${money(pc.amount)}</span></h2>
     </div>
     <div class="bill-list">`;
-
+  
   pc.bills.forEach(b=>{
     const toggleId=`${b.id}_${b.due}`;
     const checked=state[toggleId]?'checked':'';
-    const dueDate=parseDateAZ(b.due);
-    const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
+    const formattedDue=parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
     html+=`<div class="row">
       <span><span class="bill-name">${b.name}</span> (Due: ${formattedDue}) - ${money(b.amt)}</span>
       <input type="checkbox" class="toggle" data-bill-id="${b.id}" data-due="${b.due}" ${checked}>
@@ -164,13 +152,13 @@ function renderWeek(){
       <div class="progress"><i style="width:${pct}%"></i></div>
     </div>
   </div>`;
-
   container.innerHTML=html;
+
   renderAllSummary();
   renderMonthSummary();
 }
 
-// All-time summary
+// All summary
 function renderAllSummary(){
   const container=document.getElementById('allSummary');
   let planned=0,paid=0;
@@ -181,8 +169,7 @@ function renderAllSummary(){
       if(state[toggleId]) paid+=b.amt;
     });
   });
-  const remaining=planned-paid;
-  container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(remaining)}`;
+  container.innerHTML=`<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
 }
 
 // Month summary
@@ -190,8 +177,8 @@ function renderMonthSummary(){
   const container=document.getElementById('monthSummary');
   const month=parseDateAZ(WEEKS[currentWeekIndex].date).getMonth();
   const year=parseDateAZ(WEEKS[currentWeekIndex].date).getFullYear();
-
   const allBills=WEEKS.flatMap(w=>w.bills);
+
   const groupedBills={};
   allBills.forEach(b=>{
     const dueMonth=parseDateAZ(b.due).getMonth();
@@ -199,49 +186,40 @@ function renderMonthSummary(){
     if(dueMonth===month && dueYear===year){
       const key=`${b.id}_${b.due}`;
       if(!groupedBills[key]) groupedBills[key]={...b,isPaid:false};
-      const toggleId=`${b.id}_${b.due}`;
-      if(state[toggleId]) groupedBills[key].isPaid=true;
+      if(state[key]) groupedBills[key].isPaid=true;
     }
   });
 
   const billsForDisplay=Object.values(groupedBills);
-  let totalPaidForMonth=0;
-  let totalPlannedForMonth=0;
-
-  let html=`<h3>${parseDateAZ(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long',timeZone:'America/Phoenix'})} Bills</h3>`;
+  let totalPaid=0,totalPlanned=0;
+  let html=`<h3>${parseDateAZ(WEEKS[currentWeekIndex].date).toLocaleDateString('en-US',{month:'long'})} Bills</h3>`;
+  
   billsForDisplay.sort((a,b)=>parseDateAZ(a.due)-parseDateAZ(b.due));
+  billsForDisplay.forEach(b=>{
+    totalPlanned+=b.amt;
+    if(b.isPaid) totalPaid+=b.amt;
+    const formattedDue=parseDateAZ(b.due).toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
+    html+=`<div class="bill-item">
+      <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
+      <span class="${b.isPaid?'paid-amount':''}">${money(b.amt)}</span>
+    </div>`;
+  });
 
-  if(billsForDisplay.length>0){
-    billsForDisplay.forEach(b=>{
-      totalPlannedForMonth+=b.amt;
-      if(b.isPaid) totalPaidForMonth+=b.amt;
-      const dueDate=parseDateAZ(b.due);
-      const formattedDue=dueDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Phoenix'});
-      const paidClass=b.isPaid?'paid-amount':'';
-      html+=`<div class="bill-item">
-        <span><strong>${b.name}</strong> (Due: ${formattedDue})</span>
-        <span class="${paidClass}">${money(b.amt)}</span>
-      </div>`;
-    });
-  }else{
-    html+=`<p style="text-align:center;">No bills due this month.</p>`;
-  }
-
+  if(billsForDisplay.length===0) html+=`<p style="text-align:center;">No bills due this month.</p>`;
   container.innerHTML=html;
-  container.classList.toggle('all-paid', totalPaidForMonth===totalPlannedForMonth && totalPlannedForMonth>0);
+  container.classList.toggle('all-paid',totalPaid===totalPlanned && totalPlanned>0);
 }
 
 // Toggle handler
 document.addEventListener('change',async e=>{
   if(e.target.matches('.toggle')){
     const billId=e.target.dataset.billId;
-    const dueDate=e.target.dataset.due;
-    const toggleId=`${billId}_${dueDate}`;
+    const due=e.target.dataset.due;
+    const toggleId=`${billId}_${due}`;
     state[toggleId]=e.target.checked;
     renderWeek();
-    try{
-      await setDoc(TOGGLE_DOC,{[toggleId]:state[toggleId]},{merge:true});
-    }catch(err){console.warn("Error saving:",err);}
+    try{await setDoc(TOGGLE_DOC,{[toggleId]:state[toggleId]},{merge:true});}
+    catch(err){console.warn("Error saving:",err);}
   }
 });
 
@@ -253,35 +231,25 @@ function handleGesture(){
   if(touchendX<touchstartX-SWIPE_THRESHOLD && currentWeekIndex<WEEKS.length-1){currentWeekIndex++;renderWeek();}
   if(touchendX>touchstartX+SWIPE_THRESHOLD && currentWeekIndex>0){currentWeekIndex--;renderWeek();}
 }
-weekContainer.addEventListener('touchstart',e=>{touchstartX=e.changedTouches[0].screenX;});
+weekContainer.addEventListener('touchstart',e=>touchstartX=e.changedTouches[0].screenX);
 weekContainer.addEventListener('touchend',e=>{touchendX=e.changedTouches[0].screenX;handleGesture();});
 
-// Pull to refresh
-let startY=0,endY=0;
-const PULL_THRESHOLD=80;
-document.addEventListener('touchstart',e=>{startY=e.touches[0].pageY;});
-document.addEventListener('touchmove',e=>{
-  endY=e.touches[0].pageY;
-  if(window.scrollY===0 && endY>startY) document.body.style.transform=`translateY(${endY-startY}px)`;
-});
-document.addEventListener('touchend',e=>{
-  if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD) window.location.reload();
-  document.body.style.transform=`translateY(0)`;
-});
+// Pull-to-refresh
+let startY=0,endY=0,PULL_THRESHOLD=80;
+document.addEventListener('touchstart',e=>startY=e.touches[0].pageY);
+document.addEventListener('touchmove',e=>{endY=e.touches[0].pageY;if(window.scrollY===0 && endY>startY) document.body.style.transform=`translateY(${endY-startY}px)`;});
+document.addEventListener('touchend',e=>{if(window.scrollY===0 && (endY-startY)>PULL_THRESHOLD) window.location.reload();document.body.style.transform=`translateY(0)`;});
 
-// Firebase auth & init
+// Firebase init
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth,async user=>{
   if(user){
-    try{
-      const snap=await getDoc(TOGGLE_DOC);
-      state=snap.exists()?snap.data():{};
-    }catch(e){console.warn("Error reading Firestore:",e);}
+    try{const snap=await getDoc(TOGGLE_DOC);state=snap.exists()?snap.data():{};}
+    catch(e){console.warn("Error reading Firestore:",e);}
     const today=new Date();
     WEEKS.forEach((w,i)=>{
       const start=parseDateAZ(w.date);
-      const end=new Date(start);
-      end.setDate(start.getDate()+6);
+      const end=new Date(start);end.setDate(start.getDate()+6);
       if(today>=start && today<=end) currentWeekIndex=i;
     });
     renderWeek();
