@@ -23,6 +23,8 @@
     align-items: center;
     padding: 4px 0;
   }
+  .bill span { display:inline-block; }
+  .bill span.amount-name { flex:1; }
   .progress {
     background:#242938;
     border-radius:6px;
@@ -70,8 +72,8 @@
     left: 23px;
     background: white;
   }
-  /* Bill label spacing */
-  .bill span.amount { margin-right: 10px; }
+  .bill.paid .amount-name { color:#1db954; }
+  .overview.paid { background-color: #179d4d; color: white; }
 </style>
 </head>
 <body>
@@ -95,9 +97,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = initializeFirestore(app, { localCache: undefined }); // disable cache
+const db = initializeFirestore(app, { localCache: undefined });
 
-// Paydates (Arizona time) with due dates for bills
+// Paydates with bill due dates
 const paydates = [
   { date:"2025-08-22", income:2017, bills:[
     {name:"Kicks", amount:472, due:"2025-09-30"},
@@ -130,10 +132,10 @@ const paydates = [
 
 // Render function
 function render(uid, toggles){
-  const appDiv = document.getElementById("app");
+  const appDiv=document.getElementById("app");
   appDiv.innerHTML="";
 
-  const billsByMonth = {}; // monthly aggregation by bill due date
+  const monthBills={}; // bills grouped by month due date
 
   paydates.forEach((pd,index)=>{
     const div=document.createElement("div");
@@ -147,41 +149,49 @@ function render(uid, toggles){
       <div class="progress"><div class="progress-bar" id="bar-${pd.date}">0%</div></div>
       <p><b>Total:</b> $${totalBills}</p>
       <p><b>Remaining:</b> $${remaining}</p>`;
+
     appDiv.appendChild(div);
 
     const billsDiv=div.querySelector(`#bills-${pd.date}`);
     pd.bills.forEach(b=>{
       const id=pd.date+"_"+b.name.replace(/\s+/g,"_");
       const checked=toggles[id]?.checked||false;
-      billsDiv.innerHTML+=`<div class="bill">
-        <span class="amount">$${b.amount}</span>
-        <label><input type="checkbox" class="toggle" data-id="${id}" ${checked?"checked":""}/> ${b.name}</label>
+      billsDiv.innerHTML+=`<div class="bill ${checked?"paid":""}">
+        <span class="amount-name">$${b.amount} - ${b.name}</span>
+        <input type="checkbox" class="toggle" data-id="${id}" ${checked?"checked":""}/>
       </div>`;
 
-      // aggregate by due month
-      const m = b.due.slice(0,7);
-      if(!billsByMonth[m]) billsByMonth[m]={income:0,total:0,paid:0};
-      billsByMonth[m].total+=b.amount;
-      if(checked) billsByMonth[m].paid+=b.amount;
+      // group by month
+      const m=b.due.slice(0,7);
+      if(!monthBills[m]) monthBills[m]=[];
+      monthBills[m].push({...b, paydate:pd.date, checked});
     });
 
-    // Insert month overview after every 4 paydates starting in September
+    // After every 4 paydates starting September, insert monthly overview
     if((index+1)%4===0){
-      const keys = Object.keys(billsByMonth).filter(k=>k>="2025-09");
-      keys.forEach(month=>{
-        const mDiv=document.createElement("div");
-        mDiv.className="overview";
-        const vals=billsByMonth[month];
-        mDiv.innerHTML=`<h2>${month} Overview</h2>
-          <p><b>Total Bills:</b> $${vals.total}</p>
-          <p><b>Paid:</b> $${vals.paid}</p>
-          <p><b>Remaining:</b> $${vals.total-vals.paid}</p>`;
-        appDiv.appendChild(mDiv);
+      Object.keys(monthBills).filter(k=>k>="2025-09").forEach(month=>{
+        const ov=document.createElement("div");
+        ov.className="overview";
+        const bills=monthBills[month];
+        let html=`<h2>${month} Overview</h2>`;
+        let allPaid=true;
+        bills.forEach(b=>{
+          const payChecked=paydates.find(pd=>pd.date===b.paydate).bills.find(bb=>bb.name===b.name);
+          const toggleId=b.paydate+"_"+b.name.replace(/\s+/g,"_");
+          const isPaid=toggles[toggleId]?.checked||false;
+          if(!isPaid) allPaid=false;
+          html+=`<div class="bill ${isPaid?"paid":""}">
+            <span class="amount-name">$${b.amount} - ${b.name}</span>
+          </div>`;
+        });
+        if(allPaid) ov.classList.add("paid");
+        ov.innerHTML=html;
+        appDiv.appendChild(ov);
       });
     }
   });
 
-  // Update progress bars
+  // Progress bars
   function updateBars(){
     paydates.forEach(pd=>{
       const bills=pd.bills.map(b=>pd.date+"_"+b.name.replace(/\s+/g,"_"));
@@ -193,23 +203,22 @@ function render(uid, toggles){
   }
   updateBars();
 
-  // Save toggle
+  // Save toggle changes
   document.querySelectorAll("input.toggle").forEach(cb=>{
     cb.addEventListener("change", e=>{
       const id=e.target.dataset.id;
-      setDoc(doc(db,"users",uid,"toggles",id), {checked:e.target.checked});
-      updateBars();
-      render(uid,toggles); // re-render to update monthly overview
+      setDoc(doc(db,"users",uid,"toggles",id),{checked:e.target.checked});
+      render(uid,toggles);
     });
   });
 }
 
-// Auth + Firestore sync
+// Firebase Auth
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth,user=>{
   if(user){
     const uid=user.uid;
-    onSnapshot(collection(db,"users",uid,"toggles"), snap=>{
+    onSnapshot(collection(db,"users",uid,"toggles"),snap=>{
       let toggles={};
       snap.forEach(d=>toggles[d.id]=d.data());
       render(uid,toggles);
