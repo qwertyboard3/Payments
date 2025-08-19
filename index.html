@@ -70,6 +70,8 @@
     left: 23px;
     background: white;
   }
+  /* Bill label spacing */
+  .bill span.amount { margin-right: 10px; }
 </style>
 </head>
 <body>
@@ -95,21 +97,34 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = initializeFirestore(app, { localCache: undefined }); // disable cache
 
-// Paydates (Arizona time)
+// Paydates (Arizona time) with due dates for bills
 const paydates = [
   { date:"2025-08-22", income:2017, bills:[
-    {name:"Kicks", amount:472}, {name:"Progressive", amount:300}, {name:"Rogue", amount:700},
-    {name:"Fridge", amount:60}, {name:"Peñasco", amount:45}, {name:"Vegas", amount:51}, {name:"Amazon Prime", amount:50}
+    {name:"Kicks", amount:472, due:"2025-09-30"},
+    {name:"Progressive", amount:300, due:"2025-09-15"},
+    {name:"Rogue", amount:700, due:"2025-09-03"},
+    {name:"Fridge", amount:60, due:"2025-09-01"},
+    {name:"Peñasco", amount:45, due:"2025-09-01"},
+    {name:"Vegas", amount:51, due:"2025-09-01"},
+    {name:"Amazon Prime", amount:50, due:"2025-09-08"}
   ]},
   { date:"2025-08-29", income:650, bills:[
-    {name:"Hawaiian Air", amount:65},{name:"City of Phoenix", amount:60},{name:"Chase", amount:125},{name:"Frontier", amount:65}
+    {name:"Hawaiian Air", amount:65, due:"2025-09-15"},
+    {name:"City of Phoenix", amount:60, due:"2025-09-04"},
+    {name:"Chase", amount:125, due:"2025-09-15"},
+    {name:"Frontier", amount:65, due:"2025-09-15"}
   ]},
   { date:"2025-09-05", income:2017, bills:[
-    {name:"House Payment", amount:950},{name:"QS 3064", amount:100},{name:"Century Link", amount:70},
-    {name:"T-Mobile", amount:368},{name:"HOA", amount:160}
+    {name:"House Payment", amount:950, due:"2025-09-30"},
+    {name:"QS 3064", amount:100, due:"2025-09-11"},
+    {name:"Century Link", amount:70, due:"2025-09-13"},
+    {name:"T-Mobile", amount:368, due:"2025-09-15"},
+    {name:"HOA", amount:160, due:"2025-09-01"}
   ]},
   { date:"2025-09-12", income:650, bills:[
-    {name:"Walmart", amount:75},{name:"Quicksilver 5989", amount:100},{name:"Capital One", amount:189}
+    {name:"Walmart", amount:75, due:"2025-09-17"},
+    {name:"Quicksilver 5989", amount:100, due:"2025-09-15"},
+    {name:"Capital One", amount:189, due:"2025-09-10"}
   ]}
 ];
 
@@ -118,9 +133,9 @@ function render(uid, toggles){
   const appDiv = document.getElementById("app");
   appDiv.innerHTML="";
 
-  let monthTotals={};
+  const billsByMonth = {}; // monthly aggregation by bill due date
 
-  paydates.forEach(pd=>{
+  paydates.forEach((pd,index)=>{
     const div=document.createElement("div");
     div.className="paydate";
 
@@ -132,7 +147,6 @@ function render(uid, toggles){
       <div class="progress"><div class="progress-bar" id="bar-${pd.date}">0%</div></div>
       <p><b>Total:</b> $${totalBills}</p>
       <p><b>Remaining:</b> $${remaining}</p>`;
-
     appDiv.appendChild(div);
 
     const billsDiv=div.querySelector(`#bills-${pd.date}`);
@@ -140,27 +154,31 @@ function render(uid, toggles){
       const id=pd.date+"_"+b.name.replace(/\s+/g,"_");
       const checked=toggles[id]?.checked||false;
       billsDiv.innerHTML+=`<div class="bill">
+        <span class="amount">$${b.amount}</span>
         <label><input type="checkbox" class="toggle" data-id="${id}" ${checked?"checked":""}/> ${b.name}</label>
-        <span>$${b.amount}</span>
       </div>`;
+
+      // aggregate by due month
+      const m = b.due.slice(0,7);
+      if(!billsByMonth[m]) billsByMonth[m]={income:0,total:0,paid:0};
+      billsByMonth[m].total+=b.amount;
+      if(checked) billsByMonth[m].paid+=b.amount;
     });
 
-    // Month totals
-    const m=pd.date.slice(0,7);
-    if(!monthTotals[m]) monthTotals[m]={income:0, bills:0};
-    monthTotals[m].income+=pd.income;
-    monthTotals[m].bills+=totalBills;
-  });
-
-  // Monthly overview
-  Object.entries(monthTotals).forEach(([month,vals])=>{
-    const div=document.createElement("div");
-    div.className="overview";
-    div.innerHTML=`<h2>${month} Overview</h2>
-      <p><b>Income:</b> $${vals.income}</p>
-      <p><b>Total Bills:</b> $${vals.bills}</p>
-      <p><b>Remaining:</b> $${vals.income-vals.bills}</p>`;
-    appDiv.appendChild(div);
+    // Insert month overview after every 4 paydates starting in September
+    if((index+1)%4===0){
+      const keys = Object.keys(billsByMonth).filter(k=>k>="2025-09");
+      keys.forEach(month=>{
+        const mDiv=document.createElement("div");
+        mDiv.className="overview";
+        const vals=billsByMonth[month];
+        mDiv.innerHTML=`<h2>${month} Overview</h2>
+          <p><b>Total Bills:</b> $${vals.total}</p>
+          <p><b>Paid:</b> $${vals.paid}</p>
+          <p><b>Remaining:</b> $${vals.total-vals.paid}</p>`;
+        appDiv.appendChild(mDiv);
+      });
+    }
   });
 
   // Update progress bars
@@ -181,6 +199,7 @@ function render(uid, toggles){
       const id=e.target.dataset.id;
       setDoc(doc(db,"users",uid,"toggles",id), {checked:e.target.checked});
       updateBars();
+      render(uid,toggles); // re-render to update monthly overview
     });
   });
 }
