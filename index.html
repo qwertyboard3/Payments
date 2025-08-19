@@ -1,176 +1,148 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pagos</title>
-<style>
-body{margin:0;padding:20px;font-family:system-ui;background:#0f1115;color:#e6e8f0;font-size:18px;}
-h1{text-align:center;margin:16px 0;}
-.card{background:#171923;padding:20px;border-radius:12px;margin-bottom:20px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.3s ease-in-out;}
-.card h2{text-align:center;margin-bottom:10px;font-size:22px;}
-.card .income{font-size:18px;margin-top:5px;display:block;}
-.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2f3a;}
-.row:last-child{border-bottom:none;}
-.row .bill-name{font-weight:bold;}
-.toggle{appearance:none;width:50px;height:26px;border-radius:26px;position:relative;background:#252a36;border:1px solid #394055;cursor:pointer;transition:.2s;}
-.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8a93a8;transition:.2s;}
-.toggle:checked{background:linear-gradient(90deg,#1db954,#22d06e);border-color:#179d4d;}
-.toggle:checked::after{left:23px;background:white;}
-.progress{height:10px;background:#242938;border-radius:8px;overflow:hidden;margin-top:10px;border:1px solid #32384e;}
-.progress > i{display:block;height:100%;background:linear-gradient(90deg,#7c5cff,#22d06e);width:0%;}
-.summary{margin-top:16px;padding:16px;background:#171923;border-radius:10px;font-size:18px;text-align:center;}
-.month-summary{margin-top:10px;padding:12px;border-radius:10px;font-size:16px;transition: background-color 0.5s ease;}
-.month-summary h3{margin-top:0;font-size:18px;text-align:center;}
-.bill-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #2a2f3a;}
-.bill-item:last-child{border-bottom:none;}
-.bill-item .paid-amount{color:#1db954;}
-</style>
+  <meta charset="UTF-8">
+  <title>💰 Paydate Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#1a1c28; color:#eee; padding:20px; }
+    h2 { margin-top:30px; }
+    .paydate { border:1px solid #333; padding:12px; border-radius:10px; margin-bottom:16px; background:#242837; }
+    .bill { display:flex; justify-content:space-between; padding:4px 0; }
+    .progress { height:8px; background:#444; border-radius:5px; margin-top:8px; }
+    .progress i { display:block; height:100%; background:#4caf50; border-radius:5px; }
+    .paid { text-decoration:line-through; color:#999; }
+  </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // === Firebase config ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
+      authDomain: "budget-tracker-1eea7.firebaseapp.com",
+      projectId: "budget-tracker-1eea7",
+      storageBucket: "budget-tracker-1eea7.appspot.com",
+      messagingSenderId: "579",
+      appId: "1:579:web:example"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // === Data (your paydates + bills) ===
+    const PAYDATES = [
+      {
+        date:"2025-08-22", amount:2017, bills:[
+          {id:"kicks", name:"Kicks", amt:472},
+          {id:"progressive", name:"Progressive", amt:300},
+          {id:"rogue", name:"Rogue", amt:700},
+          {id:"fridge", name:"Fridge", amt:60},
+          {id:"penasco", name:"Peñasco", amt:45},
+          {id:"vegas", name:"Vegas", amt:51},
+          {id:"amazon", name:"Amazon Prime", amt:50}
+        ]
+      },
+      {
+        date:"2025-08-29", amount:650, bills:[
+          {id:"hawaiian", name:"Hawaiian Airlines", amt:65},
+          {id:"phoenix", name:"City of Phoenix", amt:60},
+          {id:"chase", name:"Chase", amt:125},
+          {id:"frontier", name:"Frontier", amt:65}
+        ]
+      },
+      {
+        date:"2025-09-05", amount:2017, bills:[
+          {id:"house", name:"House Payment", amt:950},
+          {id:"qs3064", name:"Quicksilver 3064", amt:100},
+          {id:"centurylink", name:"Century Link", amt:70},
+          {id:"tmobile", name:"T-Mobile", amt:368},
+          {id:"hoa", name:"HOA", amt:160}
+        ]
+      },
+      {
+        date:"2025-09-12", amount:650, bills:[
+          {id:"walmart", name:"Walmart", amt:75},
+          {id:"qs5989", name:"Quicksilver 5989", amt:100},
+          {id:"capitalone", name:"Capital One", amt:189}
+        ]
+      }
+    ];
+
+    const state = {};
+
+    function money(n){ return "$"+n.toFixed(2); }
+
+    // === Render all paydates ===
+    function renderAll() {
+      const container = document.getElementById("paydates");
+      container.innerHTML = "";
+
+      PAYDATES.forEach(pd=>{
+        let totalPaid=0;
+        const paydateDiv = document.createElement("div");
+        paydateDiv.className="paydate";
+
+        let html = `<h3>${new Date(pd.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} — Pay: ${money(pd.amount)}</h3>`;
+
+        pd.bills.forEach(b=>{
+          const toggleId = `${pd.date}_${b.id}`;
+          const checked = state[toggleId] ? "checked" : "";
+          if(state[toggleId]) totalPaid += b.amt;
+
+          html += `<div class="bill">
+            <label class="${state[toggleId]?'paid':''}">
+              <input type="checkbox" data-id="${toggleId}" ${checked}> ${b.name}
+            </label>
+            <span>${money(b.amt)}</span>
+          </div>`;
+        });
+
+        // progress: 100% only if all bills are paid
+        const allPaid = pd.bills.every(b => state[`${pd.date}_${b.id}`]);
+        const pct = allPaid ? 100 : Math.round((totalPaid/pd.amount)*100);
+
+        html += `<div class="progress"><i style="width:${pct}%"></i></div>`;
+        paydateDiv.innerHTML = html;
+        container.appendChild(paydateDiv);
+      });
+
+      attachToggleListeners();
+    }
+
+    // === Toggle checkboxes ===
+    function attachToggleListeners() {
+      document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+        cb.onchange = async (e)=>{
+          const id = e.target.getAttribute("data-id");
+          state[id] = e.target.checked;
+          await saveState(id, state[id]);
+          renderAll();
+        };
+      });
+    }
+
+    // === Firebase save/load ===
+    async function saveState(id, val) {
+      try {
+        await setDoc(doc(db,"toggles",id),{checked:val});
+      } catch(e){ console.error("Save failed", e); }
+    }
+    async function loadState() {
+      for (const pd of PAYDATES){
+        for (const b of pd.bills){
+          const id = `${pd.date}_${b.id}`;
+          const snap = await getDoc(doc(db,"toggles",id));
+          if(snap.exists()) state[id] = snap.data().checked;
+        }
+      }
+      renderAll();
+    }
+
+    loadState();
+  </script>
 </head>
 <body>
-<h1>Pagos V1.0</h1>
-<section id="weekContainer"></section>
-<div class="summary" id="allSummary"></div>
-<div id="monthSummaries"></div>
-
-<script>
-let state = {};
-
-// Helper: Arizona time date
-function parseDateAZ(dateStr){
-    const [y,m,d] = dateStr.split('-').map(Number);
-    return new Date(y,m-1,d + new Date().getTimezoneOffset()/60/24);
-}
-
-function money(n){return '$'+Number(n).toLocaleString();}
-
-// Initial 4 paydates data
-const INITIAL_WEEKS=[
-  {date:'2025-08-22',amount:2017,bills:[
-    {id:'kicks',name:'Kicks',amt:472,due:'2025-08-22'},
-    {id:'progressive',name:'Progressive',amt:300,due:'2025-08-22'},
-    {id:'rogue',name:'Rogue',amt:700,due:'2025-08-22'},
-    {id:'fridge',name:'Fridge',amt:60,due:'2025-08-22'},
-    {id:'penasco',name:'Peñasco',amt:45,due:'2025-08-22'},
-    {id:'vegas',name:'Vegas',amt:51,due:'2025-08-22'},
-    {id:'amazon',name:'Amazon',amt:50,due:'2025-08-22'}
-  ]},
-  {date:'2025-08-29',amount:650,bills:[
-    {id:'hawaiian',name:'Hawaiian Air',amt:65,due:'2025-08-29'},
-    {id:'city',name:'City of Phoenix',amt:60,due:'2025-08-29'},
-    {id:'chase',name:'Chase',amt:125,due:'2025-08-29'},
-    {id:'frontier',name:'Frontier',amt:65,due:'2025-08-29'}
-  ]},
-  {date:'2025-09-05',amount:2017,bills:[
-    {id:'house',name:'House payment',amt:950,due:'2025-09-05'},
-    {id:'qs3064',name:'QS 3064',amt:100,due:'2025-09-05'},
-    {id:'centurylink',name:'Century Link',amt:70,due:'2025-09-05'},
-    {id:'tmobile',name:'T-Mobile',amt:368,due:'2025-09-05'},
-    {id:'hoa',name:'HOA',amt:160,due:'2025-09-05'}
-  ]},
-  {date:'2025-09-12',amount:650,bills:[
-    {id:'walmart',name:'Walmart',amt:75,due:'2025-09-12'},
-    {id:'qs5989',name:'Quicksilver5989',amt:100,due:'2025-09-12'},
-    {id:'capitalone',name:'Capital One',amt:189,due:'2025-09-12'}
-  ]}
-];
-
-// Generate future months by repeating initial pattern every 4 weeks
-function generateFutureWeeks(initialWeeks, numCycles){
-    let weeks = [...initialWeeks];
-    let lastDate = parseDateAZ(initialWeeks[initialWeeks.length-1].date);
-    for(let cycle=1; cycle<numCycles; cycle++){
-        initialWeeks.forEach(w=>{
-            lastDate.setDate(lastDate.getDate() + 7);
-            const newBills = w.bills.map(b=>({...b, due: lastDate.toISOString().slice(0,10)}));
-            weeks.push({date:lastDate.toISOString().slice(0,10),amount:w.amount,bills:newBills});
-        });
-    }
-    return weeks;
-}
-
-const WEEKS = generateFutureWeeks(INITIAL_WEEKS,3); // 3 cycles => ~3 months
-
-// Render all paydates
-function renderWeeks(){
-    const container = document.getElementById('weekContainer');
-    container.innerHTML = '';
-    WEEKS.forEach(pc=>{
-        let totalPaid = 0;
-        pc.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
-        const pct = pc.bills.every(b=>state[`${b.id}_${b.due}`]) ? 100 : Math.round((totalPaid/pc.amount)*100);
-        let html=`<div class="card">
-            <div class="card-header"><h2>Pay Date: ${parseDateAZ(pc.date).toLocaleDateString()} <span class="income">Income: ${money(pc.amount)}</span></h2></div>`;
-        pc.bills.forEach(b=>{
-            const toggleId=`${b.id}_${b.due}`;
-            const checked = state[toggleId]?'checked':'';
-            html+=`<div class="row">
-                <span>${b.name} - ${money(b.amt)}</span>
-                <input type="checkbox" class="toggle" data-id="${toggleId}" ${checked}>
-            </div>`;
-        });
-        html+=`<div class="card-footer">
-            <p>Paid: ${money(totalPaid)} | Remaining: ${money(pc.amount-totalPaid)}</p>
-            <div class="progress"><i style="width:${pct}%"></i></div>
-        </div></div>`;
-        container.innerHTML += html;
-    });
-    renderAllSummary();
-    renderMonthSummaries();
-}
-
-// Overall summary
-function renderAllSummary(){
-    let planned=0,paid=0;
-    WEEKS.forEach(w=>w.bills.forEach(b=>{
-        planned+=b.amt;
-        if(state[`${b.id}_${b.due}`]) paid+=b.amt;
-    }));
-    document.getElementById('allSummary').innerHTML = `<strong>Total:</strong> ${money(planned)} | <strong>Paid:</strong> ${money(paid)} | <strong>Remaining:</strong> ${money(planned-paid)}`;
-}
-
-// Monthly summaries
-function renderMonthSummaries(){
-    const container = document.getElementById('monthSummaries');
-    container.innerHTML = '';
-    // Group by month-year
-    const months = {};
-    WEEKS.forEach(w=>{
-        const d = parseDateAZ(w.date);
-        const key = `${d.getFullYear()}-${d.getMonth()+1}`;
-        if(!months[key]) months[key]=[];
-        months[key].push(w);
-    });
-    for(const [key,weeks] of Object.entries(months)){
-        let monthName = parseDateAZ(weeks[0].date).toLocaleDateString('en-US',{month:'long',year:'numeric'});
-        let html = `<div class="month-summary"><h3>${monthName} Overview</h3>`;
-        weeks.forEach((w,idx)=>{
-            let totalPaid = 0;
-            w.bills.forEach(b=>{if(state[`${b.id}_${b.due}`]) totalPaid+=b.amt;});
-            const pct = w.bills.every(b=>state[`${b.id}_${b.due}`]) ? 100 : Math.round((totalPaid/w.amount)*100);
-            html += `<div style="margin:10px 0;padding:10px;border:1px solid #32384e;border-radius:8px;">
-                        <strong>Paydate ${idx+1}: ${parseDateAZ(w.date).toLocaleDateString()}</strong>`;
-            w.bills.forEach(b=>{
-                const toggleId=`${b.id}_${b.due}`;
-                const paidClass = state[toggleId]?'paid-amount':'';
-                html += `<div style="display:flex;justify-content:space-between;"><span>${b.name}</span><span class="${paidClass}">${money(b.amt)}</span></div>`;
-            });
-            html += `<div class="progress" style="margin-top:6px;"><i style="width:${pct}%"></i></div></div>`;
-        });
-        container.innerHTML += html;
-    }
-}
-
-// Toggle handler
-document.addEventListener('change',e=>{
-    if(e.target.matches('.toggle')){
-        const id = e.target.dataset.id;
-        state[id] = e.target.checked;
-        renderWeeks();
-    }
-});
-
-renderWeeks();
-</script>
+  <h1>💰 Paydate Tracker</h1>
+  <div id="paydates"></div>
+  <h2>📅 Month Overview Coming Next…</h2>
 </body>
 </html>
