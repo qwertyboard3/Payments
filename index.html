@@ -4,29 +4,15 @@
   <meta charset="UTF-8" />
   <title>💰 Budget Tracker</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-    h2 { margin-top: 30px; }
-    .paydate-card {
-      background: #fff;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    body { font-family: Arial, sans-serif; margin:20px; background:#f4f4f4; }
+    h2 { margin-top:30px; }
+    .paydate, .overview {
+      background:#fff; padding:15px; margin:15px 0; border-radius:10px;
+      box-shadow:0 2px 5px rgba(0,0,0,0.1);
     }
-    .progress-container {
-      background: #ddd;
-      border-radius: 6px;
-      height: 10px;
-      margin-top: 8px;
-      width: 100%;
-    }
-    .progress-bar {
-      background: #4caf50;
-      height: 10px;
-      border-radius: 6px;
-      width: 0%;
-    }
-    .bill-item { display: flex; justify-content: space-between; padding: 4px 0; }
+    .bill { display:flex; justify-content:space-between; margin:5px 0; }
+    .progress { background:#ddd; border-radius:5px; overflow:hidden; height:20px; margin-top:10px; }
+    .progress-bar { background:#4caf50; height:100%; width:0%; text-align:center; color:#fff; font-size:12px; }
   </style>
 </head>
 <body>
@@ -35,39 +21,41 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { initializeFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // === Firebase Config ===
+    // === Firebase config ===
     const firebaseConfig = {
       apiKey: "AIzaSyC7ubmyUmeCAun50g-AUUOHiuwpGAys2HM",
       authDomain: "budget-tracker-1eea7.firebaseapp.com",
       projectId: "budget-tracker-1eea7",
-      storageBucket: "budget-tracker-1eea7.appspot.com",
-      messagingSenderId: "579085918927",
-      appId: "1:579085918927:web:xxxxxxxxxxxx"
+      storageBucket: "budget-tracker-1eea7.firebasestorage.app",
+      messagingSenderId: "579",
+      appId: "1:579:web:demo"
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
     const auth = getAuth(app);
-    signInAnonymously(auth);
+    // 🚫 Disable Firestore local cache to avoid corruption
+    const db = initializeFirestore(app, { localCache: undefined });
 
-    // === Paydates & Bills ===
-    const PAYDATES = [
+    // === Paydate data (Arizona time) ===
+    const paydates = [
       {
-        date: "2025-08-22", income: 2017, bills: [
+        date: "2025-08-22", income: 2017,
+        bills: [
           { name: "Kicks", amount: 472 },
           { name: "Progressive", amount: 300 },
           { name: "Rogue", amount: 700 },
           { name: "Fridge", amount: 60 },
           { name: "Peñasco", amount: 45 },
           { name: "Vegas", amount: 51 },
-          { name: "Amazon", amount: 50 },
+          { name: "Amazon Prime", amount: 50 },
         ]
       },
       {
-        date: "2025-08-29", income: 650, bills: [
+        date: "2025-08-29", income: 650,
+        bills: [
           { name: "Hawaiian Air", amount: 65 },
           { name: "City of Phoenix", amount: 60 },
           { name: "Chase", amount: 125 },
@@ -75,8 +63,9 @@
         ]
       },
       {
-        date: "2025-09-05", income: 2017, bills: [
-          { name: "House payment", amount: 950 },
+        date: "2025-09-05", income: 2017,
+        bills: [
+          { name: "House Payment", amount: 950 },
           { name: "QS 3064", amount: 100 },
           { name: "Century Link", amount: 70 },
           { name: "T-Mobile", amount: 368 },
@@ -84,99 +73,100 @@
         ]
       },
       {
-        date: "2025-09-12", income: 650, bills: [
+        date: "2025-09-12", income: 650,
+        bills: [
           { name: "Walmart", amount: 75 },
-          { name: "Quicksilver5989", amount: 100 },
+          { name: "Quicksilver 5989", amount: 100 },
           { name: "Capital One", amount: 189 },
         ]
       }
     ];
 
-    // === Helpers ===
-    function formatDate(dateStr) {
-      const d = new Date(dateStr + "T00:00:00-07:00"); // Arizona time
-      return d.toLocaleDateString("en-US", { timeZone: "America/Phoenix" });
-    }
-
-    async function render(user) {
+    // === Render function ===
+    function render(uid, userToggles) {
       const appDiv = document.getElementById("app");
       appDiv.innerHTML = "";
 
       let monthTotals = {};
-      const snapshot = await getDocs(collection(db, "users", user.uid, "toggles"));
-      let savedToggles = {};
-      snapshot.forEach(docSnap => { savedToggles[docSnap.id] = docSnap.data().checked; });
 
-      PAYDATES.forEach(paydate => {
-        const month = new Date(paydate.date + "T00:00:00-07:00").toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "America/Phoenix" });
-        if (!monthTotals[month]) monthTotals[month] = { income: 0, bills: 0, remaining: 0, paydates: [] };
-        const totalBills = paydate.bills.reduce((a,b) => a+b.amount, 0);
-        const remaining = paydate.income - totalBills;
-        monthTotals[month].income += paydate.income;
-        monthTotals[month].bills += totalBills;
-        monthTotals[month].remaining += remaining;
-        monthTotals[month].paydates.push({ ...paydate, totalBills, remaining });
-      });
+      paydates.forEach(pd => {
+        const div = document.createElement("div");
+        div.className = "paydate";
 
-      Object.entries(monthTotals).forEach(([month, data]) => {
-        const monthDiv = document.createElement("div");
-        monthDiv.innerHTML = `<h2>${month}</h2>`;
-        appDiv.appendChild(monthDiv);
+        let totalBills = pd.bills.reduce((s,b) => s+b.amount, 0);
+        let remaining = pd.income - totalBills;
 
-        data.paydates.forEach(paydate => {
-          const card = document.createElement("div");
-          card.className = "paydate-card";
+        div.innerHTML = `<h2>${new Date(pd.date+"T00:00:00-07:00").toLocaleDateString("en-US",{timeZone:"America/Phoenix"})} — $${pd.income}</h2>
+          <div id="bills-${pd.date}"></div>
+          <div class="progress"><div class="progress-bar" id="bar-${pd.date}">0%</div></div>
+          <p><b>Total:</b> $${totalBills}</p>
+          <p><b>Remaining:</b> $${remaining}</p>`;
+        appDiv.appendChild(div);
 
-          let billsHtml = "";
-          let checkedCount = 0;
+        const billsDiv = div.querySelector(`#bills-${pd.date}`);
+        pd.bills.forEach(b => {
+          const billId = pd.date + "_" + b.name.replace(/\s+/g,"_");
+          const isChecked = userToggles[billId]?.checked || false;
 
-          paydate.bills.forEach(bill => {
-            const id = `${paydate.date}_${bill.name}`;
-            const checked = savedToggles[id] || false;
-            if (checked) checkedCount++;
-            billsHtml += `
-              <div class="bill-item">
-                <label><input type="checkbox" data-id="${id}" ${checked ? "checked" : ""}> ${bill.name}</label>
-                <span>$${bill.amount}</span>
-              </div>
-            `;
-          });
-
-          const progress = paydate.bills.length ? Math.round((checkedCount / paydate.bills.length) * 100) : 0;
-
-          card.innerHTML = `
-            <h3>${formatDate(paydate.date)} — Income: $${paydate.income}</h3>
-            ${billsHtml}
-            <div>Total: $${paydate.totalBills}</div>
-            <div>Remaining: $${paydate.remaining}</div>
-            <div class="progress-container"><div class="progress-bar" style="width:${progress}%;"></div></div>
-          `;
-
-          monthDiv.appendChild(card);
+          billsDiv.innerHTML += `
+            <div class="bill">
+              <label><input type="checkbox" data-id="${billId}" ${isChecked?"checked":""}/> ${b.name}</label>
+              <span>$${b.amount}</span>
+            </div>`;
         });
 
-        const overview = document.createElement("div");
-        overview.className = "paydate-card";
-        overview.innerHTML = `
-          <h3>Monthly Overview</h3>
-          <div>Income: $${data.income}</div>
-          <div>Bills: $${data.bills}</div>
-          <div>Remaining: $${data.remaining}</div>
-        `;
-        monthDiv.appendChild(overview);
+        // Track totals per month
+        const m = pd.date.slice(0,7); // YYYY-MM
+        if (!monthTotals[m]) monthTotals[m] = { income:0, bills:0 };
+        monthTotals[m].income += pd.income;
+        monthTotals[m].bills += totalBills;
       });
 
-      // === Toggle saving ===
-      document.querySelectorAll("input[type=checkbox]").forEach(cb => {
-        cb.addEventListener("change", async e => {
-          const id = e.target.dataset.id;
-          await setDoc(doc(db, "users", user.uid, "toggles", id), { checked: e.target.checked });
-          render(user); // refresh progress
+      // === Month overview ===
+      Object.entries(monthTotals).forEach(([month, vals]) => {
+        const div = document.createElement("div");
+        div.className = "overview";
+        div.innerHTML = `<h2>${month} Overview</h2>
+          <p><b>Income:</b> $${vals.income}</p>
+          <p><b>Total Bills:</b> $${vals.bills}</p>
+          <p><b>Remaining:</b> $${vals.income - vals.bills}</p>`;
+        appDiv.appendChild(div);
+      });
+
+      // === Progress handling ===
+      function updateBars() {
+        paydates.forEach(pd => {
+          const bills = pd.bills.map(b=>pd.date+"_"+b.name.replace(/\s+/g,"_"));
+          const checked = bills.filter(id => document.querySelector(`[data-id="${id}"]`)?.checked).length;
+          const pct = bills.length? Math.round((checked/bills.length)*100):0;
+          const bar = document.getElementById("bar-"+pd.date);
+          if(bar) { bar.style.width = pct+"%"; bar.textContent = pct+"%"; }
+        });
+      }
+      updateBars();
+
+      // === Save toggle to Firestore ===
+      document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+        cb.addEventListener("change", e=>{
+          const toggleId = e.target.dataset.id;
+          setDoc(doc(db,"users",uid,"toggles",toggleId), { checked:e.target.checked });
+          updateBars();
         });
       });
     }
 
-    onAuthStateChanged(auth, user => { if (user) render(user); });
+    // === Auth + Firestore sync ===
+    signInAnonymously(auth).catch(err=>console.error("Auth error", err));
+    onAuthStateChanged(auth, user=>{
+      if(user){
+        const uid = user.uid;
+        onSnapshot(collection(db,"users",uid,"toggles"), snap=>{
+          let toggles={};
+          snap.forEach(d=>toggles[d.id]=d.data());
+          render(uid, toggles);
+        });
+      }
+    });
   </script>
 </body>
 </html>
